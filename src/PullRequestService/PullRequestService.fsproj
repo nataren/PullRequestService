@@ -38,7 +38,7 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <OutputPath>C:\Users\César López-Natarén\src\pullguard\src\bin\</OutputPath>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <StartArguments>config pullguard-config.xml</StartArguments>
+    <StartArguments>config pr.config</StartArguments>
     <StartWorkingDirectory>C:\Users\César López-Natarén\src\pullguard\src\bin\</StartWorkingDirectory>
     <StartAction>Program</StartAction>
     <StartProgram>C:\Users\César López-Natarén\src\pullguard\src\bin\mindtouch.host.exe</StartProgram>
@@ -54,10 +54,19 @@
     <None Include="App.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Autofac">
       <HintPath>..\redist\Autofac.dll</HintPath>
+    </Reference>
+    <Reference Include="FSharp.Data">
+      <HintPath>..\packages\FSharp.Data.1.1.5\lib\net40\FSharp.Data.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="FSharp.Data.DesignTime">
+      <HintPath>..\packages\FSharp.Data.1.1.5\lib\net40\FSharp.Data.DesignTime.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="mindtouch.core">
       <HintPath>..\redist\mindtouch.core.dll</HintPath>
@@ -66,9 +75,6 @@
       <HintPath>..\redist\mindtouch.dream.dll</HintPath>
     </Reference>
     <Reference Include="mscorlib" />
-    <Reference Include="FSharp.Core">
-      <Private>True</Private>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Numerics" />
