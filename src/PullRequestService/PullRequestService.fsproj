@@ -5,11 +5,11 @@
     <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{614c828c-4f77-48fc-bc30-fd3d9d34f04b}</ProjectGuid>
+    <ProjectGuid>{614C828C-4F77-48FC-BC30-FD3D9D34F04B}</ProjectGuid>
     <OutputType>Library</OutputType>
-    <RootNamespace>PullGuard</RootNamespace>
+    <RootNamespace>mindtouch</RootNamespace>
     <AssemblyName>PullRequestService</AssemblyName>
-    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <TargetFrameworkProfile>
     </TargetFrameworkProfile>
     <Name>PullRequestService</Name>
@@ -19,24 +19,24 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <Tailcalls>false</Tailcalls>
-    <OutputPath>C:\Users\César López-Natarén\src\pullguard\src\bin\</OutputPath>
+    <OutputPath>..\bin\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>x86</PlatformTarget>
-    <DocumentationFile>bin\Debug\PullGuard.XML</DocumentationFile>
+    <DocumentationFile>C:\Users\César López-Natarén\src\pullguard\src\bin\PullRequestService.XML</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <Tailcalls>true</Tailcalls>
-    <OutputPath>bin\Release\</OutputPath>
+    <OutputPath>..\bin</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>x86</PlatformTarget>
     <DocumentationFile>bin\Release\PullGuard.XML</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <OutputPath>C:\Users\César López-Natarén\src\pullguard\src\bin\</OutputPath>
+    <OutputPath>..\bin\</OutputPath>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <StartArguments>config pr.config</StartArguments>
     <StartWorkingDirectory>C:\Users\César López-Natarén\src\pullguard\src\bin\</StartWorkingDirectory>
@@ -44,7 +44,7 @@
     <StartProgram>C:\Users\César López-Natarén\src\pullguard\src\bin\mindtouch.host.exe</StartProgram>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <OutputPath>bin\Release\</OutputPath>
+    <OutputPath>..\bin\</OutputPath>
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
   <Import Project="$(MSBuildExtensionsPath32)\FSharp\1.0\Microsoft.FSharp.Targets" Condition="!Exists('$(MSBuildBinPath)\Microsoft.Build.Tasks.v4.0.dll')" />
@@ -62,11 +62,9 @@
     </Reference>
     <Reference Include="FSharp.Data">
       <HintPath>..\packages\FSharp.Data.1.1.5\lib\net40\FSharp.Data.dll</HintPath>
-      <Private>True</Private>
     </Reference>
     <Reference Include="FSharp.Data.DesignTime">
       <HintPath>..\packages\FSharp.Data.1.1.5\lib\net40\FSharp.Data.DesignTime.dll</HintPath>
-      <Private>True</Private>
     </Reference>
     <Reference Include="mindtouch.core">
       <HintPath>..\redist\mindtouch.core.dll</HintPath>
