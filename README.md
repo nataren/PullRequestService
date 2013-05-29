@@ -51,7 +51,7 @@ Create a file `pr.config` with the following content, and change the values appr
 ```
 ## Run the service
 Run the following command inside the service's folder:
-	mono mindtouch.host.exe config pr.config
+```mono mindtouch.host.exe config pr.config```
 
 ## Test the service
 1. Create a pull request in your repo against the master branch
