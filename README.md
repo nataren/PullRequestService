@@ -1,7 +1,7 @@
-# Setup PullRequestService
+# PullRequestService
 ## Overview
 
-The PullRequestService listens to notifications from a Github's repository in regards to pull request
+The `PullRequestService` listens to notifications from a Github's repository in regards to pull request
 creation and closes it if it is targeting the master branch.
 
 ## Prerequisites
@@ -11,7 +11,7 @@ creation and closes it if it is targeting the master branch.
 ### To compile
 1. Xamarin Studio
 2. `F# 3.0` support on Xamarin Studio
-3. Access to the Git repo https://bitbucket.org/nataren/pullrequestservice
+3. Access to the `Git` repo https://bitbucket.org/nataren/pullrequestservice
 
 ## Setup
 
@@ -27,10 +27,10 @@ creation and closes it if it is targeting the master branch.
 		"events": ["pull_request"],
 		"config" : { "url": "https://{HOSTNAME}:{PORT}/notify", "content_type":"json" }
 	}
-Where the config's url must be the PullRequestService public URL (plus notify's route)
+Where the config's url must be the `PullRequestService` public `URL` (plus notify's route)
 
 ### Create the service's configuration file
-Create a file pr.config with the following content, and change the values appropriately
+Create a file `pr.config` with the following content, and change the values appropriately
 	<config>
 		<host>{HOSTNAME}</host>
 		<http-port>{PORT}</http-port>
