@@ -6,11 +6,11 @@ creation and closes it if it is targeting the master branch.
 
 ## Prerequisites
 ### To run
-1. Mono with support for .NET 4.5
+1. `Mono` with support for `.NET 4.5`
 
 ### To compile
 1. Xamarin Studio
-2. F# 3.0 support on Xamarin Studio
+2. `F# 3.0` support on Xamarin Studio
 3. Access to the Git repo https://bitbucket.org/nataren/pullrequestservice
 
 ## Setup
@@ -19,8 +19,8 @@ creation and closes it if it is targeting the master branch.
 1. https://github.com/blog/1509-personal-api-tokens
 
 ### Create a repo's web hook
-1. Perform a POST request to https://api.github.com/repos/MindTouch/{REPO}/hooks
-2. Inclue the "Authorization : token {TOKEN}" header in the request
+1. Perform a `POST` request to `https://api.github.com/repos/MindTouch/{REPO}/hooks`
+2. Inclue the `Authorization : token {TOKEN}` header in the request
 3. The payload is:
 	{
 		"name": "web",
