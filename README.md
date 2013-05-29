@@ -11,12 +11,12 @@ creation and closes it if it is targeting the master branch.
 ### To compile
 1. Xamarin Studio
 2. `F# 3.0` support on Xamarin Studio
-3. Access to the `Git` repo https://bitbucket.org/nataren/pullrequestservice
+3. Access to the `Git` repo <https://bitbucket.org/nataren/pullrequestservice>
 
 ## Setup
 
 ### Create a repo's personal API token
-1. https://github.com/blog/1509-personal-api-tokens
+1. <https://github.com/blog/1509-personal-api-tokens>
 
 ### Create a repo's web hook
 1. Perform a `POST` request to `https://api.github.com/repos/MindTouch/{REPO}/hooks`
