@@ -15,7 +15,7 @@ type PullRequestService() =
     inherit DreamService()
     let mutable token = ""
     let mutable publicUri = ""
-    let GITHUB_API = "https://api.github.com"
+    let GITHUB_API = new XUri("https://api.github.com")
                 
     override this.Start(config : XDoc, container : ILifetimeScope, result : Result) =
         token <- config.["github.token"].AsText
@@ -30,15 +30,22 @@ type PullRequestService() =
         let pr = JsonValue.Parse(request.ToText())
         if this.InvalidPullRequest(pr)
         then this.ClosePullRequest(pr)
-        DreamMessage.Ok(MimeType.TEXT, pr.ToString())
 
     [<DreamFeature("GET:status", "Check the service's status")>]
     member this.GetStatus(context : DreamContext, request : DreamMessage) =
         DreamMessage.Ok(MimeType.TEXT, "Everything running smoothly ...")
         
-    member this.InvalidPullRequest(pullRequest : JsonValue) =
-        pullRequest?pull_request?base?ref = "master"
+    member this.InvalidPullRequest(pr : JsonValue) =
+        let action = pr?action.AsString()
+        action = "open" || action = "reopen" && pr.["pull_request"].["base"].["ref"].AsString() = "master"
         
-    member this.ClosePullRequest(pullRequest : JsonValue) =
-        true
+    member this.ClosePullRequest(pr : JsonValue) =
+        let update =
+            new DreamMessage(
+                DreamStatus.Ok,
+                new DreamHeaders([| new KeyValuePair<string, string>("Authorization", "token " + token);  new KeyValuePair<string, string>("X-HTTP-Method-Override", "PATCH") |]),
+                MimeType.JSON,
+                """{ "state":"closed"  }""")
+        let pullUrl = new XUri(pr?pull_request?url.AsString())
+        Plug.New(GITHUB_API).At(pullUrl.Segments).Post(update) |> ignore
         
