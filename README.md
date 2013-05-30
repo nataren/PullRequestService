@@ -17,24 +17,24 @@ creation and closes it if it is targeting the master branch.
 
 ## Setup
 
-### Create a repo's personal API token
+### Create a Personal API Access Token from an organization's admin user
 1. <https://github.com/blog/1509-personal-api-tokens>
 
 ### Create a repo's web hook
 1. Perform a `POST` request to `https://api.github.com/repos/MindTouch/{REPO}/hooks`
 2. Inclue the `Authorization : token {TOKEN}` header in the request
 3. The payload is:
-`
+``
 { "name": "web",
   "events": ["pull_request"],
   "config" : { "url": "https://{HOSTNAME}:{PORT}/notify", "content_type":"json" }
 }
-`
+``
 Where the config's url must be the `PullRequestService` public `URL` (plus notify's route)
 
 ### Create the service's configuration file
 Create a file `pr.config` with the following content, and change the values appropriately
-`
+``
 <config>
   <host>{HOSTNAME}</host>
   <http-port>{PORT}</http-port>
@@ -49,7 +49,7 @@ Create a file `pr.config` with the following content, and change the values appr
 	</action>
   </script>
 </config>
-`
+``
 
 ## Run the service
 Run the following command inside the service's folder:
