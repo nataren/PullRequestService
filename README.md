@@ -13,7 +13,6 @@ creation and closes it if it is targeting the master branch.
 ### To compile
 1. Xamarin Studio
 2. `F# 3.0` support on Xamarin Studio
-3. Access to the `Git` repo <https://bitbucket.org/nataren/pullrequestservice>
 
 ## Setup
 
