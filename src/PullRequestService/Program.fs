@@ -1,4 +1,26 @@
-﻿namespace mindtouch
+﻿(*
+ * MindTouch PullRequestService - a DreamService that awaits pull requests
+ * notifications from Github and acts upon it
+ *
+ * Copyright (C) 2006-2013 MindTouch, Inc.
+ * www.mindtouch.com  oss@mindtouch.com
+ *
+ * For community documentation and downloads visit help.mindtouch.us;
+ * please review the licensing section.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *)
+namespace mindtouch
 
 open System
 open System.Collections.Generic
@@ -10,8 +32,6 @@ open FSharp.Data.Json
 open FSharp.Data.Json.Extensions
 
 exception MissingConfig of string
-// TODO(cesarn): Create constants inside a module for all the config key names, and reuse
-// TODO(cesarn): Confirm what kind of encoding on the segments is necessary
 
 [<DreamService(
     "MindTouch Github Pull Request Service",
@@ -85,8 +105,6 @@ type PullRequestService() =
                 MimeType.JSON,
                 "")
         let hooks : JsonValue[] = JsonValue.Parse(GITHUB_API.At("repos", owner.Value, repo, "hooks").Get(auth).ToText()).AsArray()
-        
-        // TODO(cesarn): Use proper pattern matching
         let isPullRequestEvent (events : JsonValue[]) = Seq.exists (fun (event : JsonValue) -> event.AsString() = "pull_request") events
         Seq.exists (fun (hook : JsonValue) -> isPullRequestEvent(hook?events.AsArray()) && hook?name.AsString() = "web" && hook?config?url.AsString() = this.Self.Uri.At("notify").AsPublicUri().ToString()) hooks
         
