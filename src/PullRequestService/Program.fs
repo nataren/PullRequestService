@@ -40,11 +40,13 @@ exception MissingConfig of string
 [<DreamServiceConfig("github.token", "string", "A Github's personal API access token")>]
 [<DreamServiceConfig("github.owner", "string", "The owner of the repos we want to watch")>]
 [<DreamServiceConfig("github.repos", "string", "Comma separated list of repos to watch")>]
+[<DreamServiceConfig("public.uri", "string?", "The end-point's public URI to use to communicate with this service. It is optional, used for testing purposes with a public proxy and the service running locally")>]
 type PullRequestService() =
     inherit DreamService()
     let GITHUB_API = Plug.New(new XUri("https://api.github.com"))
     let mutable token = None
     let mutable owner = None
+    let mutable publicUri = None
                 
     override this.Start(config : XDoc, container : ILifetimeScope, result : Result) =
         
@@ -52,11 +54,15 @@ type PullRequestService() =
         token <- Some config.["github.token"].AsText
         owner <- Some config.["github.owner"].AsText
         let repos = Some config.["github.repos"].AsText
+        publicUri <- Some config.["public.uri"].AsText
+        match publicUri with
+        | None -> publicUri <- Some(this.Self.Uri.At("notify").AsPublicUri().ToString())
+        | _ -> ()
         
         // Validate
-        this.ValidateConfig("github.token", token)
-        this.ValidateConfig("github.owner", owner)
-        this.ValidateConfig("github.repos", repos)
+        this.ValidateConfig "github.token" token
+        this.ValidateConfig "github.owner" owner
+        this.ValidateConfig "github.repos" repos
         
         // Use
         this.CreateWebHooks(repos.Value.Split(','))
@@ -64,26 +70,26 @@ type PullRequestService() =
         Seq.empty<IYield>.GetEnumerator()
         
     [<DreamFeature("POST:notify", "Receive a pull request notification")>]
-    member this.HandleGithubMessage(context : DreamContext, request : DreamMessage) =
+    member this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
         let pr = JsonValue.Parse(request.ToText())
         if this.InvalidPullRequest(pr)
         then this.ClosePullRequest(pr)
         else DreamMessage.Ok(MimeType.JSON, "Pull request does not target master branch, will ignore"B)
 
     [<DreamFeature("GET:status", "Check the service's status")>]
-    member this.GetStatus(context : DreamContext, request : DreamMessage) =
+    member this.GetStatus (context : DreamContext) (request : DreamMessage) =
         DreamMessage.Ok(MimeType.JSON, "Running ...")
         
-    member this.ValidateConfig(key, value) =
+    member this.ValidateConfig (key : string) value =
         match value with
         | None -> raise(MissingConfig(key))
         | _ -> ()
 
-    member this.InvalidPullRequest(pr : JsonValue) =
+    member this.InvalidPullRequest (pr : JsonValue) =
         let action = pr?action.AsString()
         (action = "opened" || action = "reopened") && pr.["pull_request"].["base"].["ref"].AsString() = "master"
         
-    member this.ClosePullRequest(pr : JsonValue) =
+    member this.ClosePullRequest (pr : JsonValue) =
         let close =
             new DreamMessage(
                 DreamStatus.Ok,
@@ -92,7 +98,7 @@ type PullRequestService() =
                 """{ "state" : "closed"  }""")
         Plug.New(new XUri(pr?pull_request?url.AsString())).Post(close)
         
-    member this.CreateWebHooks(repos) =
+    member this.CreateWebHooks repos =
         repos
         |> Seq.filter (fun repo -> not(this.WebHookExist(repo)))
         |> Seq.iter (fun repo -> this.CreateWebHook(repo))
@@ -106,7 +112,7 @@ type PullRequestService() =
                 "")
         let hooks : JsonValue[] = JsonValue.Parse(GITHUB_API.At("repos", owner.Value, repo, "hooks").Get(auth).ToText()).AsArray()
         let isPullRequestEvent (events : JsonValue[]) = Seq.exists (fun (event : JsonValue) -> event.AsString() = "pull_request") events
-        Seq.exists (fun (hook : JsonValue) -> isPullRequestEvent(hook?events.AsArray()) && hook?name.AsString() = "web" && hook?config?url.AsString() = this.Self.Uri.At("notify").AsPublicUri().ToString()) hooks
+        Seq.exists (fun (hook : JsonValue) -> isPullRequestEvent(hook?events.AsArray()) && hook?name.AsString() = "web" && hook?config?url.AsString() = publicUri.Value) hooks
         
     member this.CreateWebHook repo =
         let createHook =
@@ -114,7 +120,7 @@ type PullRequestService() =
                 DreamStatus.Ok,
                 new DreamHeaders([| new KeyValuePair<string, string>("Authorization", "token " + token.Value) |]),
                 MimeType.JSON,
-                String.Format("""{{ "name" : "web", "events" : ["pull_request"], "config" : {{ "url" : "{0}", "content_type" : "json" }} }}""", this.Self.Uri.At("notify").AsPublicUri().ToString()))
+                String.Format("""{{ "name" : "web", "events" : ["pull_request"], "config" : {{ "url" : "{0}", "content_type" : "json" }} }}""", publicUri.Value))
         try
             ignore(GITHUB_API.At("repos", owner.Value, repo, "hooks").Post(createHook))
         with
