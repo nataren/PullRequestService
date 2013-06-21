@@ -40,9 +40,9 @@
     <OutputPath>..\bin\</OutputPath>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <StartArguments>config pr.config</StartArguments>
-    <StartWorkingDirectory>C:\Users\César López-Natarén\src\pullguard\src\bin\</StartWorkingDirectory>
+    <StartWorkingDirectory>..\src\bin\</StartWorkingDirectory>
     <StartAction>Program</StartAction>
-    <StartProgram>C:\Users\César López-Natarén\src\pullguard\src\bin\mindtouch.host.exe</StartProgram>
+    <StartProgram>..\src\bin\mindtouch.host.exe</StartProgram>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <OutputPath>..\bin\</OutputPath>
