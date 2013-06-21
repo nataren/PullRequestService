@@ -37,12 +37,15 @@
     <DocumentationFile>bin\Release\PullGuard.XML</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <OutputPath>..\bin\</OutputPath>
+    <OutputPath>..\redist</OutputPath>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <StartArguments>config pr.config</StartArguments>
-    <StartWorkingDirectory>C:\Users\César López-Natarén\src\pullguard\src\bin\</StartWorkingDirectory>
-    <StartAction>Program</StartAction>
-    <StartProgram>C:\Users\César López-Natarén\src\pullguard\src\bin\mindtouch.host.exe</StartProgram>
+    <StartArguments>
+    </StartArguments>
+    <StartWorkingDirectory>
+    </StartWorkingDirectory>
+    <StartAction>Project</StartAction>
+    <StartProgram>
+    </StartProgram>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <OutputPath>..\bin\</OutputPath>
