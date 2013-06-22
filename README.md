@@ -8,11 +8,12 @@ creation and closes it if it is targeting the master branch.
 
 ## Prerequisites
 ### To run
-1. `Mono` with support for `.NET 4.5`
+1. `.NET 4.5` or
+2. `Mono` with support for `.NET 4.5`
 
 ### To compile
-1. Xamarin Studio
-2. `F# 3.0` support on Xamarin Studio
+1. `Visual Studio 2012` or
+2. `Xamarin Studio` with `F# 3.0` support
 
 ## Setup
 
@@ -35,6 +36,7 @@ Create a file `pr.config` with the following content, and change the values appr
 				<github.token>{TOKEN}</github.token>
 				<github.owner>{OWNER}</github.owner>
 				<github.repos>{REPOS}</github.repos>
+				<public.uri>{OPTIONAL_ROUTE_TO_NOTIFY_END_POINT</public.uri>
 			</config>
 		</action>
 	</script>
