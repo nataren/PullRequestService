@@ -8,8 +8,9 @@ creation and closes it if it is targeting the master branch.
 
 ## Prerequisites
 ### Binaries
-Get the from [here] (https://github.com/nataren/PullRequestService/tree/master/src/redist "PullRequestService binaries") 
-Or checkout the `master` branch and get them from the `src\redist` folder
+* Get the from [here] (https://github.com/nataren/PullRequestService/tree/master/src/redist "PullRequestService binaries") 
+* Or checkout the `master` branch and get them from the `src\redist` folder
+
 ### To run
 1. `.NET 4.5` or
 2. `Mono` with support for `.NET 4.5`
