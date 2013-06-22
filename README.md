@@ -22,7 +22,7 @@ creation and closes it if it is targeting the master branch.
 ## Setup
 
 ### Create a Personal API Access Token from an organization's admin user
-1. <https://github.com/blog/1509-personal-api-tokens>
+1. [Github Personal API tokens] (https://github.com/blog/1509-personal-api-tokens)
 
 ### Create the service's configuration file
 Create a file `pr.config` with the following content, and change the values appropriately
