@@ -8,7 +8,7 @@ creation and closes it if it is targeting the master branch.
 
 ## Prerequisites
 ### Binaries
-* Get the from [here] (https://github.com/nataren/PullRequestService/tree/master/src/redist "PullRequestService binaries") 
+* Get them from [here] (https://github.com/nataren/PullRequestService/tree/master/src/redist "PullRequestService binaries") 
 * Or checkout the `master` branch and get them from the `src\redist` folder
 
 ### To run
