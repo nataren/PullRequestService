@@ -12,8 +12,8 @@ creation and closes it if it is targeting the master branch.
 * Or checkout the `master` branch and get them from the `src\redist` folder
 
 ### To run
-1. `.NET 4.5` or
-2. `Mono` with support for `.NET 4.5`
+1. `.NET 4.5` with `F# 3.0` support (or `VS 2012` with `F# 3.0` support)  or
+2. `Mono` with support for `.NET 4.5` and `F# 3.0`
 
 ### To compile
 1. `Visual Studio 2012` or
