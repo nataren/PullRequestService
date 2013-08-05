@@ -26,6 +26,7 @@ nunit-results.xml
 *.ReSharper
 *.tmp
 *.bak
+*.config
 LocalSettings.php
 cache/
 attachments/

@@ -53,10 +53,11 @@ type PullRequestService() =
     override this.Start(config : XDoc, container : ILifetimeScope, result : Result) =
         
         // Gather
-        token <- Some config.["github.token"].AsText
-        owner <- Some config.["github.owner"].AsText
-        let repos = Some config.["github.repos"].AsText
-        publicUri <- Some config.["public.uri"].AsText
+        let config' = this.GetConfigValue config
+        token <- config' "github.token"
+        owner <- config' "github.owner"
+        let repos = config' "github.repos"
+        publicUri <- config' "public.uri"
         match publicUri with
         | None -> publicUri <- Some(this.Self.Uri.At("notify").AsPublicUri().ToString())
         | _ -> ()
@@ -89,6 +90,13 @@ type PullRequestService() =
         match value with
         | None -> raise(MissingConfig(key))
         | _ -> ()
+
+    member this.GetConfigValue (doc : XDoc) (key : string) =
+        let configVal = doc.[key].AsText
+        if configVal = null then
+            None
+        else
+            Some configVal
 
     member this.InvalidPullRequest (pr : JsonValue) =
         let action = pr?action.AsString()
