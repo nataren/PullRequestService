@@ -44,22 +44,47 @@ exception MissingConfig of string
 [<DreamServiceConfig("public.uri", "string?", @"The notify end-point's full public URI to use to communicate with this service")>]
 type PullRequestService() =
     inherit DreamService()
+
+    //--- Fields ---
     let GITHUB_API = Plug.New(new XUri("https://api.github.com"))
+    let mutable token = None
+    let mutable owner = None
+    let mutable publicUri = None
     let DATE_PATTERN = "yyyyMMdd"
 
-    let InvalidPullRequest (pr : JsonValue) =
+    //--- Functions ---
+    let OpenPullRequest pr =
         let action = pr?action.AsString()
-        (action = "opened" || action = "reopened") && pr?pull_request?``base``?ref.AsString() = "master"
+        (action = "opened" || action = "reopened")
+    
+    let InvalidPullRequest pr =
+         OpenPullRequest pr && pr?pull_request?``base``?ref.AsString() = "master"
 
-    let AutoMergeablePullRequest (pr : JsonValue) =
+    let AutoMergeablePullRequest pr =
         let action = pr?action.AsString()
         let targetBranch = pr?pull_request?``base``?ref.AsString()
         try
             let targetBranchDate = DateTime.ParseExact(targetBranch.Substring(targetBranch.Length - DATE_PATTERN.Length), DATE_PATTERN, null)
-            (action = "opened" || action = "reopened") && (targetBranchDate - DateTime.Now.Date).Days >= 6
+            OpenPullRequest pr && (targetBranchDate - DateTime.Now.Date).Days >= 6
         with
             | ex -> false
 
+    let ValidateConfig key value =
+        match value with
+        | None -> raise(MissingConfig(key))
+        | _ -> ()
+
+    let GetConfigValue (doc : XDoc) (key : string) =
+        let configVal = doc.[key].AsText
+        if configVal = null then
+            None
+        else
+            Some configVal
+
+    let Json(payload : string, headers : seq<KeyValuePair<string, string>>) =
+        new DreamMessage(DreamStatus.Ok, new DreamHeaders(headers), MimeType.JSON, payload)
+
+    //--- Active Patterns ---
     let (|Invalid | AutoMergeable | Skip|) pr =
         if InvalidPullRequest(pr) then
             Invalid
@@ -68,14 +93,11 @@ type PullRequestService() =
         else
             Skip
 
-    let mutable token = None
-    let mutable owner = None
-    let mutable publicUri = None
-                
+    //--- Methods ---
     override this.Start(config : XDoc, container : ILifetimeScope, result : Result) =
         
         // Gather
-        let config' = this.GetConfigValue config
+        let config' = GetConfigValue config
         token <- config' "github.token"
         owner <- config' "github.owner"
         let repos = config' "github.repos"
@@ -85,9 +107,9 @@ type PullRequestService() =
         | _ -> ()
         
         // Validate
-        this.ValidateConfig "github.token" token
-        this.ValidateConfig "github.owner" owner
-        this.ValidateConfig "github.repos" repos
+        ValidateConfig "github.token" token
+        ValidateConfig "github.owner" owner
+        ValidateConfig "github.repos" repos
         
         // Use
         this.CreateWebHooks(repos.Value.Split(','))
@@ -95,7 +117,7 @@ type PullRequestService() =
         Seq.empty<IYield>.GetEnumerator()
         
     [<DreamFeature("POST:notify", "Receive a pull request notification")>]
-    member this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
+    member public this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
         let pr = JsonValue.Parse(request.ToText())
         match pr with
         | Invalid -> this.ClosePullRequest(pr)
@@ -103,49 +125,34 @@ type PullRequestService() =
         | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to handled by a human since is not targeting an open or the master branch"B)
 
     [<DreamFeature("GET:status", "Check the service's status")>]
-    member this.GetStatus (context : DreamContext) (request : DreamMessage) =
+    member public this.GetStatus (context : DreamContext) (request : DreamMessage) =
         DreamMessage.Ok(MimeType.JSON, "Running ...")
     
-    member this.Json(payload : string, headers : seq<KeyValuePair<string, string>>) =
-        new DreamMessage(DreamStatus.Ok, new DreamHeaders(headers), MimeType.JSON, payload)
-
-    member this.ValidateConfig (key : string) value =
-        match value with
-        | None -> raise(MissingConfig(key))
-        | _ -> ()
-
-    member this.GetConfigValue (doc : XDoc) (key : string) =
-        let configVal = doc.[key].AsText
-        if configVal = null then
-            None
-        else
-            Some configVal
-
-    member this.ClosePullRequest (pr : JsonValue) =
+    // Pull requests methods
+    member private this.ClosePullRequest pr =
         Plug.New(new XUri(pr?pull_request?url.AsString()))
-            .Post(this.Json("""{ "state" : "closed"  }""", [| new KeyValuePair<string, string>("Authorization", "token " + token.Value); new KeyValuePair<string, string>("X-HTTP-Method-Override", "PATCH") |]))
+            .Post(Json("""{ "state" : "closed"  }""", [| new KeyValuePair<string, string>("Authorization", "token " + token.Value); new KeyValuePair<string, string>("X-HTTP-Method-Override", "PATCH") |]))
 
-    member this.MergePullRequest (pr : JsonValue) =
+    member private this.MergePullRequest pr =
         let prUri = new XUri(pr?pull_request?url.AsString())
         let mergePlug = Plug.New(prUri.At("merge"))
-        mergePlug.Put(this.Json("{}", [| new KeyValuePair<string, string>("Authorization", "token " + token.Value) |]))
+        mergePlug.Put(Json("{}", [| new KeyValuePair<string, string>("Authorization", "token " + token.Value) |]))
 
-    member this.CreateWebHooks repos =
+    // Webhooks methods
+    member private this.CreateWebHooks repos =
         repos
         |> Seq.filter (fun repo -> not(this.WebHookExist(repo)))
         |> Seq.iter (fun repo -> this.CreateWebHook(repo))
         
-    member this.WebHookExist repo =
-        let auth = this.Json("", [| new KeyValuePair<string, string>("Authorization", "token " + token.Value) |])
+    member private this.WebHookExist repo =
+        let auth = Json("", [| new KeyValuePair<string, string>("Authorization", "token " + token.Value) |])
         let hooks : JsonValue[] = JsonValue.Parse(GITHUB_API.At("repos", owner.Value, repo, "hooks").Get(auth).ToText()).AsArray()
         let isPullRequestEvent (events : JsonValue[]) = Seq.exists (fun (event : JsonValue) -> event.AsString() = "pull_request") events
         hooks |> Seq.exists (fun (hook : JsonValue) -> isPullRequestEvent(hook?events.AsArray()) && hook?name.AsString() = "web" && hook?config?url.AsString() = publicUri.Value)
         
-    member this.CreateWebHook repo =
-        let createHook = this.Json(String.Format("""{{ "name" : "web", "events" : ["pull_request"], "config" : {{ "url" : "{0}", "content_type" : "json" }} }}""",  publicUri.Value), [| new KeyValuePair<string, string>("Authorization", "token " + token.Value) |])
+    member private this.CreateWebHook repo =
+        let createHook = Json(String.Format("""{{ "name" : "web", "events" : ["pull_request"], "config" : {{ "url" : "{0}", "content_type" : "json" }} }}""",  publicUri.Value), [| new KeyValuePair<string, string>("Authorization", "token " + token.Value) |])
         try
             ignore(GITHUB_API.At("repos", owner.Value, repo, "hooks").Post(createHook))
         with
         | _ -> ()
-   
-        
