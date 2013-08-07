@@ -122,7 +122,7 @@ type PullRequestService() =
         match pr with
         | Invalid -> this.ClosePullRequest(pr)
         | AutoMergeable ->  this.MergePullRequest(pr)
-        | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to handled by a human since is not targeting an open or the master branch"B)
+        | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to be handled by a human since is not targeting an open branch or the master branch"B)
 
     [<DreamFeature("GET:status", "Check the service's status")>]
     member public this.GetStatus (context : DreamContext) (request : DreamMessage) =
