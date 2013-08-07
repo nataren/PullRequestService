@@ -71,7 +71,7 @@ type PullRequestService() =
 
     let ValidateConfig key value =
         match value with
-        | None -> raise(MissingConfig(key))
+        | None -> raise(MissingConfig key)
         | _ -> ()
 
     let GetConfigValue (doc : XDoc) (key : string) =
@@ -120,8 +120,8 @@ type PullRequestService() =
     member public this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
         let pr = JsonValue.Parse(request.ToText())
         match pr with
-        | Invalid -> this.ClosePullRequest(pr)
-        | AutoMergeable ->  this.MergePullRequest(pr)
+        | Invalid -> this.ClosePullRequest pr
+        | AutoMergeable ->  this.MergePullRequest pr
         | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to be handled by a human since is not targeting an open branch or the master branch"B)
 
     [<DreamFeature("GET:status", "Check the service's status")>]
@@ -141,8 +141,8 @@ type PullRequestService() =
     // Webhooks methods
     member private this.CreateWebHooks repos =
         repos
-        |> Seq.filter (fun repo -> not(this.WebHookExist(repo)))
-        |> Seq.iter (fun repo -> this.CreateWebHook(repo))
+        |> Seq.filter (fun repo -> not(this.WebHookExist repo))
+        |> Seq.iter (fun repo -> this.CreateWebHook repo)
         
     member private this.WebHookExist repo =
         let auth = Json("", [| new KeyValuePair<string, string>("Authorization", "token " + token.Value) |])
