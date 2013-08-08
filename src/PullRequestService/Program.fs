@@ -55,7 +55,7 @@ type PullRequestService() =
     //--- Functions ---
     let OpenPullRequest pr =
         let action = pr?action.AsString()
-        (action = "opened" || action = "reopened")
+        action = "opened" || action = "reopened"
     
     let InvalidPullRequest pr =
          OpenPullRequest pr && pr?pull_request?``base``?ref.AsString() = "master"
@@ -86,14 +86,43 @@ type PullRequestService() =
 
     //--- Active Patterns ---
     let (|Invalid | AutoMergeable | Skip|) pr =
-        if InvalidPullRequest(pr) then
+        if InvalidPullRequest pr then
             Invalid
-        else if AutoMergeablePullRequest(pr) then
+        else if AutoMergeablePullRequest pr then
             AutoMergeable
         else
             Skip
 
     //--- Methods ---
+    // Pull requests methods
+    let ClosePullRequest pr =
+        Plug.New(new XUri(pr?pull_request?url.AsString()))
+            .Post(Json("""{ "state" : "closed"  }""", [| new KeyValuePair<string, string>("Authorization", "token " + token.Value); new KeyValuePair<string, string>("X-HTTP-Method-Override", "PATCH") |]))
+
+    let MergePullRequest pr =
+        let prUri = new XUri(pr?pull_request?url.AsString())
+        let mergePlug = Plug.New(prUri.At("merge"))
+        mergePlug.Put(Json("{}", [| new KeyValuePair<string, string>("Authorization", "token " + token.Value) |]))
+
+    // Webhooks methods
+    let WebHookExist repo =
+        let auth = Json("", [| new KeyValuePair<string, string>("Authorization", "token " + token.Value) |])
+        let hooks : JsonValue[] = JsonValue.Parse(GITHUB_API.At("repos", owner.Value, repo, "hooks").Get(auth).ToText()).AsArray()
+        let isPullRequestEvent (events : JsonValue[]) = Seq.exists (fun (event : JsonValue) -> event.AsString() = "pull_request") events
+        hooks |> Seq.exists (fun (hook : JsonValue) -> isPullRequestEvent(hook?events.AsArray()) && hook?name.AsString() = "web" && hook?config?url.AsString() = publicUri.Value)
+        
+    let CreateWebHook repo =
+        let createHook = Json(String.Format("""{{ "name" : "web", "events" : ["pull_request"], "config" : {{ "url" : "{0}", "content_type" : "json" }} }}""",  publicUri.Value), [| new KeyValuePair<string, string>("Authorization", "token " + token.Value) |])
+        try
+            ignore(GITHUB_API.At("repos", owner.Value, repo, "hooks").Post(createHook))
+        with
+        | _ -> ()
+
+    let CreateWebHooks repos =
+        repos
+        |> Seq.filter (fun repo -> not(WebHookExist repo))
+        |> Seq.iter (fun repo -> CreateWebHook repo)
+        
     override this.Start(config : XDoc, container : ILifetimeScope, result : Result) =
         
         // Gather
@@ -112,7 +141,7 @@ type PullRequestService() =
         ValidateConfig "github.repos" repos
         
         // Use
-        this.CreateWebHooks(repos.Value.Split(','))
+        CreateWebHooks(repos.Value.Split(','))
         result.Return()
         Seq.empty<IYield>.GetEnumerator()
         
@@ -120,39 +149,10 @@ type PullRequestService() =
     member public this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
         let pr = JsonValue.Parse(request.ToText())
         match pr with
-        | Invalid -> this.ClosePullRequest pr
-        | AutoMergeable ->  this.MergePullRequest pr
+        | Invalid -> ClosePullRequest pr
+        | AutoMergeable ->  MergePullRequest pr
         | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to be handled by a human since is not targeting an open branch or the master branch"B)
 
     [<DreamFeature("GET:status", "Check the service's status")>]
     member public this.GetStatus (context : DreamContext) (request : DreamMessage) =
         DreamMessage.Ok(MimeType.JSON, "Running ...")
-    
-    // Pull requests methods
-    member private this.ClosePullRequest pr =
-        Plug.New(new XUri(pr?pull_request?url.AsString()))
-            .Post(Json("""{ "state" : "closed"  }""", [| new KeyValuePair<string, string>("Authorization", "token " + token.Value); new KeyValuePair<string, string>("X-HTTP-Method-Override", "PATCH") |]))
-
-    member private this.MergePullRequest pr =
-        let prUri = new XUri(pr?pull_request?url.AsString())
-        let mergePlug = Plug.New(prUri.At("merge"))
-        mergePlug.Put(Json("{}", [| new KeyValuePair<string, string>("Authorization", "token " + token.Value) |]))
-
-    // Webhooks methods
-    member private this.CreateWebHooks repos =
-        repos
-        |> Seq.filter (fun repo -> not(this.WebHookExist repo))
-        |> Seq.iter (fun repo -> this.CreateWebHook repo)
-        
-    member private this.WebHookExist repo =
-        let auth = Json("", [| new KeyValuePair<string, string>("Authorization", "token " + token.Value) |])
-        let hooks : JsonValue[] = JsonValue.Parse(GITHUB_API.At("repos", owner.Value, repo, "hooks").Get(auth).ToText()).AsArray()
-        let isPullRequestEvent (events : JsonValue[]) = Seq.exists (fun (event : JsonValue) -> event.AsString() = "pull_request") events
-        hooks |> Seq.exists (fun (hook : JsonValue) -> isPullRequestEvent(hook?events.AsArray()) && hook?name.AsString() = "web" && hook?config?url.AsString() = publicUri.Value)
-        
-    member private this.CreateWebHook repo =
-        let createHook = Json(String.Format("""{{ "name" : "web", "events" : ["pull_request"], "config" : {{ "url" : "{0}", "content_type" : "json" }} }}""",  publicUri.Value), [| new KeyValuePair<string, string>("Authorization", "token " + token.Value) |])
-        try
-            ignore(GITHUB_API.At("repos", owner.Value, repo, "hooks").Post(createHook))
-        with
-        | _ -> ()
