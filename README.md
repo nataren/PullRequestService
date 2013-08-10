@@ -40,7 +40,7 @@ Create a file `pr.config` with the following content, and change the values appr
 				<github.token>{TOKEN}</github.token>
 				<github.owner>{OWNER}</github.owner>
 				<github.repos>{REPOS}</github.repos>
-				<public.uri>{OPTIONAL_ROUTE_TO_NOTIFY_END_POINT</public.uri>
+				<public.uri>{ROUTE_TO_NOTIFY_END_POINT</public.uri>
 			</config>
 		</action>
 	</script>
