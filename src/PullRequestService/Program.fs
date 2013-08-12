@@ -124,28 +124,40 @@ type PullRequestService() =
             with
             | ex -> raise(new Exception(String.Format("Repo '{0}' failed to initialize ({1})", repo, ex))))
 
+    let rec unfoldr f b =
+        match f b with
+        | Some (a, new_b) -> a :: unfoldr f new_b
+        | None -> []
+  
+    let enumeratorToList (e:IEnumerator<_>) =
+        let func (e:IEnumerator<_>) =
+            if e.MoveNext()
+            then Some (e.Current, e)
+            else None in
+        unfoldr func e
+
     override this.Start(config : XDoc, container : ILifetimeScope, result : Result) =
-        // NOTE(cesarn): Commented out for now
-        // base.Start(config, container, result)
+        seq {
+            yield! enumeratorToList(base.Start(config, container, result))
 
-        // Gather
-        let config' = GetConfigValue config
-        token <- config' "github.token"
-        owner <- config' "github.owner"
-        let repos = config' "github.repos"
-        publicUri <- config' "public.uri"
+            // Gather
+            let config' = GetConfigValue config
+            yield token <- config' "github.token"
+            yield owner <- config' "github.owner"
+            let repos = config' "github.repos"
+            yield publicUri <- config' "public.uri"
         
-        // Validate
-        ValidateConfig "github.token" token
-        ValidateConfig "github.owner" owner
-        ValidateConfig "github.repos" repos
-        ValidateConfig "public.uri" publicUri
+            // Validate
+            yield ValidateConfig "github.token" token
+            yield ValidateConfig "github.owner" owner
+            yield ValidateConfig "github.repos" repos
+            yield ValidateConfig "public.uri" publicUri
         
-        // Use
-        CreateWebHooks(repos.Value.Split(','))
-        result.Return()
-        Seq.empty<IYield>.GetEnumerator()
-
+            // Use
+            yield CreateWebHooks(repos.Value.Split(','))
+            yield result.Return()
+       }
+        
     [<DreamFeature("POST:notify", "Receive a pull request notification")>]
     member this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
         match DeterminePullRequestType(JsonValue.Parse(request.ToText())) with
