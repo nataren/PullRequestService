@@ -31,6 +31,7 @@ open MindTouch.Xml
 open FSharp.Data.Json
 open FSharp.Data.Json.Extensions
 open Microsoft.FSharp.Collections
+open log4net
 
 exception MissingConfig of string
 
@@ -56,6 +57,7 @@ type PullRequestService() =
     let mutable owner = None
     let mutable publicUri = None
     let DATE_PATTERN = "yyyyMMdd"
+    let logger = LogManager.GetLogger typedefof<PullRequestService>
 
     //--- Functions ---
     let OpenPullRequest pr =
@@ -148,7 +150,9 @@ type PullRequestService() =
 
     [<DreamFeature("POST:notify", "Receive a pull request notification")>]
     member this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
-        match DeterminePullRequestType(JsonValue.Parse(request.ToText())) with
+        let requestText = request.ToText()
+        logger.DebugFormat("Payload: ({0})", requestText)
+        match DeterminePullRequestType(JsonValue.Parse(requestText)) with
         | Invalid i -> ClosePullRequest i
         | AutoMergeable uri -> MergePullRequest uri
         | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to be handled by a human since is not targeting an open branch or the master branch"B)
