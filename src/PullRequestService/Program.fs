@@ -41,6 +41,8 @@ type PullRequestType =
 | UnknownMergeability of XUri
 | Skip
 
+type Agent<'T> = MailboxProcessor<'T>
+
 [<DreamService(
     "MindTouch Github Pull Request Service",
     "Copyright (C) 2013 MindTouch Inc.",
@@ -59,6 +61,31 @@ type PullRequestService() =
     let mutable publicUri = None
     let DATE_PATTERN = "yyyyMMdd"
     let logger = LogManager.GetLogger typedefof<PullRequestService>
+
+    // Supervisor agent
+    let supervisor =
+        Agent<Exception>.Start(fun inbox -> async {
+            while true do
+                let!  err = inbox.Receive()
+                logger.DebugFormat("An error ocurred in an agent: %A", err)
+        })
+
+    // Polling agent
+    let pollAgent =
+        Agent.Start(fun inbox ->
+            let rec loop (queue : Queue<XUri>) = async {
+                let! msg = inbox.Receive()
+                queue.Enqueue(msg)
+                return! loop queue
+            }
+            loop (new Queue<XUri>()))
+
+    let mergeAgent =
+        Agent.Start(fun inbox ->
+            let rec loop = async {
+                return! loop
+            }
+            loop)
 
     //--- Functions ---
     let OpenPullRequest pr =
@@ -111,6 +138,7 @@ type PullRequestService() =
             .Post(Json("""{ "state" : "closed"  }""", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value); new KeyValuePair<_, _>("X-HTTP-Method-Override", "PATCH") |]))
 
     let QueueMergePullRequest (prUri : XUri) =
+        pollAgent.Post(prUri)
         DreamMessage.Ok()
 
     let MergePullRequest (prUri : XUri) =
@@ -156,6 +184,10 @@ type PullRequestService() =
         
         // Use
         CreateWebHooks(repos.Value.Split(','))
+
+        // Start the agents
+        pollAgent.Error.Add(fun error -> supervisor.Post error)
+        pollAgent.Start()
         result.Return()
         Seq.empty<IYield>.GetEnumerator()
 
