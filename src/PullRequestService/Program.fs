@@ -38,6 +38,7 @@ exception MissingConfig of string
 type PullRequestType =
 | Invalid of XUri
 | AutoMergeable of XUri
+| UnknownMergeability of XUri
 | Skip
 
 [<DreamService(
@@ -71,7 +72,11 @@ type PullRequestService() =
         let action = pr?action.AsString()
         let targetBranch = pr?pull_request?``base``?ref.AsString()
         let targetBranchDate = DateTime.ParseExact(targetBranch.Substring(targetBranch.Length - DATE_PATTERN.Length), DATE_PATTERN, null)
-        OpenPullRequest pr && (targetBranchDate - DateTime.UtcNow.Date).Days >= 6
+        OpenPullRequest pr && pr?mergeable.AsBoolean() && (targetBranchDate - DateTime.UtcNow.Date).Days >= 6
+
+    let UnknownMergeabilityPullRequest pr =
+        let action = pr?action.AsString()
+        OpenPullRequest pr && pr?mergeable_state.AsString() = "unknown"
 
     let ValidateConfig key value =
         match value with
@@ -89,10 +94,13 @@ type PullRequestService() =
         new DreamMessage(DreamStatus.Ok, new DreamHeaders(headers), MimeType.JSON, payload)
 
     let DeterminePullRequestType pr =
+        let pullRequestUrl = pr?pull_request?url.AsString()
         if InvalidPullRequest pr then
-            Invalid (new XUri(pr?pull_request?url.AsString()))
+            Invalid (new XUri(pullRequestUrl))
+        else if UnknownMergeabilityPullRequest pr then
+            UnknownMergeability (new XUri(pullRequestUrl))
         else if AutoMergeablePullRequest pr then
-            AutoMergeable (new XUri(pr?pull_request?url.AsString()))
+            AutoMergeable (new XUri(pullRequestUrl))
         else
             Skip
 
@@ -101,6 +109,9 @@ type PullRequestService() =
     let ClosePullRequest (prUri : XUri) =
         Plug.New(prUri)
             .Post(Json("""{ "state" : "closed"  }""", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value); new KeyValuePair<_, _>("X-HTTP-Method-Override", "PATCH") |]))
+
+    let QueueMergePullRequest (prUri : XUri) =
+        DreamMessage.Ok()
 
     let MergePullRequest (prUri : XUri) =
         let mergePlug = Plug.New(prUri.At("merge"))
@@ -154,6 +165,7 @@ type PullRequestService() =
         logger.DebugFormat("Payload: ({0})", requestText)
         match DeterminePullRequestType(JsonValue.Parse(requestText)) with
         | Invalid i -> ClosePullRequest i
+        | UnknownMergeability uri -> QueueMergePullRequest uri
         | AutoMergeable uri -> MergePullRequest uri
         | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to be handled by a human since is not targeting an open branch or the master branch"B)
 
