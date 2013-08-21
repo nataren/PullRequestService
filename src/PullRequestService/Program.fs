@@ -153,14 +153,18 @@ type PullRequestService() as self =
     let InvalidPullRequest pr =
          OpenPullRequest pr && pr?pull_request?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
 
-    let AutoMergeablePullRequest pr =
-        let action = pr?action.AsString()
+    let targetOpenBranch targetBranchDate =
+        (targetBranchDate - DateTime.UtcNow.Date).Days >= 6
+
+    let getTargetBranchDate pr =
         let targetBranch = pr?pull_request?``base``?ref.AsString()
-        let targetBranchDate = DateTime.ParseExact(targetBranch.Substring(targetBranch.Length - DATE_PATTERN.Length), DATE_PATTERN, null)
-        OpenPullRequest pr && pr?mergeable.AsBoolean() && (targetBranchDate - DateTime.UtcNow.Date).Days >= 6
+        DateTime.ParseExact(targetBranch.Substring(targetBranch.Length - DATE_PATTERN.Length), DATE_PATTERN, null)
+
+    let AutoMergeablePullRequest pr =
+        OpenPullRequest pr && pr?mergeable.AsBoolean() && targetOpenBranch(getTargetBranchDate pr)
 
     let UnknownMergeabilityPullRequest pr =
-        OpenPullRequest pr && pr?pull_request?mergeable_state.AsString() = "unknown"
+        OpenPullRequest pr && targetOpenBranch(getTargetBranchDate pr) && pr?pull_request?mergeable_state.AsString() = "unknown"
 
     let ValidateConfig key value =
         match value with
