@@ -99,7 +99,7 @@ type PullRequestService() as self =
                     with
                         | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed -> supervisor.Post e
                         | e ->
-                            cache.Set(prUri, retry + 1, POLL_STATUS_TTL)
+                            cache.Set(prUri, retry + 1, MERGE_TTL)
                             raise e
                 ()
             loop(cache)
