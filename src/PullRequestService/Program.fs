@@ -51,19 +51,27 @@ type Agent<'T> = MailboxProcessor<'T>
 [<DreamServiceConfig("github.token", "string", "A Github's personal API access token")>]
 [<DreamServiceConfig("github.owner", "string", "The owner of the repos we want to watch")>]
 [<DreamServiceConfig("github.repos", "string", "Comma separated list of repos to watch")>]
-[<DreamServiceConfig("public.uri", "string?", "The notify end-point's full public URI to use to communicate with this service")>]
+[<DreamServiceConfig("public.uri", "string", "The notify end-point's full public URI to use to communicate with this service")>]
+[<DreamServiceConfig("merge.retries", "int", "The number of times we should retry merging a pull request in case there was an error")>]
+[<DreamServiceConfig("merge.ttl", "int", "The amount of time (in milliseconds) that we need to wait before we try to merge the pull request again")>]
+[<DreamServiceConfig("mergeability.retries", "int", "The number of times we should retry polling for the mergeability status")>]
+[<DreamServiceConfig("mergeability.ttl", "int", "The amount of time (in milliseconds) that we need to wait before we try to check for the mergeability status of the pull request")>]
 type PullRequestService() as self =
     inherit DreamService()
 
     //--- Fields ---
-    let GITHUB_API = Plug.New(new XUri("https://api.github.com"))
+    // Config keys values
     let mutable token = None
     let mutable owner = None
     let mutable publicUri = None
-    let mutable mergeRetries : int Option = None
+    let mutable mergeRetries = None
+    let mutable mergeabilityRetries = None
+    let mutable mergeabilityTTL = TimeSpan.MinValue
+    let mutable mergeTTL = TimeSpan.MinValue
+
+    // Immutable
+    let GITHUB_API = Plug.New(new XUri("https://api.github.com"))
     let DATE_PATTERN = "yyyyMMdd"
-    let POLL_STATUS_TTL = TimeSpan.FromSeconds(15.0)
-    let MERGE_TTL = TimeSpan.FromSeconds(2.0)
     let logger = LogManager.GetLogger typedefof<PullRequestService>
 
     // Supervisor agent
@@ -85,13 +93,8 @@ type PullRequestService() as self =
     let mergeAgent =
         let timerFactory = self.TimerFactory
         let cache = new ExpiringDictionary<XUri, int>(timerFactory)
-        Agent.Start <| fun inbox ->
-            let rec loop (cache : ExpiringDictionary<XUri, int>) = async {
-                let! msg = inbox.Receive()
-                cache.Set(msg, 0, MERGE_TTL)
-                return! loop cache
-            }
-            cache.EntryExpired.Add <| fun args ->
+        cache.EntryExpired.Add <|
+            fun args ->
                 let prUri, retry = args.Entry.Key, args.Entry.Value
                 if retry <= mergeRetries.Value then
                     try
@@ -99,35 +102,42 @@ type PullRequestService() as self =
                     with
                         | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed -> raise e
                         | e ->
-                            cache.Set(prUri, retry + 1, MERGE_TTL)
+                            cache.Set(prUri, retry + 1, mergeTTL)
                             raise e
                 ()
+        Agent.Start <| fun inbox ->
+            let rec loop (cache : ExpiringDictionary<XUri, int>) = async {
+                let! msg = inbox.Receive()
+                cache.Set(msg, 0, mergeTTL)
+                return! loop cache
+            }
             loop(cache)
 
     // Polling agent
     let pollAgent =
         let timerFactory = self.TimerFactory
         let cache = new ExpiringDictionary<XUri, int>(timerFactory)
-        Agent.Start <| fun inbox ->
-            let rec loop (cache : ExpiringDictionary<XUri, int>) = async {
-                let! msg = inbox.Receive()
-                cache.Set(msg, 0, POLL_STATUS_TTL)
-                return! loop cache
-            }
-            cache.EntryExpired.Add <| fun args ->
+        cache.EntryExpired.Add <|
+            fun args ->
                 let prUri, retry = args.Entry.Key, args.Entry.Value
-                if retry <= mergeRetries.Value then
+                if retry <= mergeabilityRetries.Value then
                     try
                         let resp = (Plug.New prUri).Get()
                         let pr = JsonValue.Parse(resp.ToText())
                         if pr?mergeable.AsBoolean() then
                             mergeAgent.Post prUri
                         else
-                            cache.Set(prUri, retry + 1, POLL_STATUS_TTL)
+                            cache.Set(prUri, retry + 1, mergeabilityTTL)
                     with e ->
-                        cache.Set(prUri, retry + 1, POLL_STATUS_TTL)
+                        cache.Set(prUri, retry + 1, mergeabilityTTL)
                         raise e
                 ()
+        Agent.Start <| fun inbox ->
+            let rec loop (cache : ExpiringDictionary<XUri, int>) = async {
+                let! msg = inbox.Receive()
+                cache.Set(msg, 0, mergeabilityTTL)
+                return! loop cache
+            }
             loop(cache)
 
     //--- Functions ---
@@ -221,14 +231,22 @@ type PullRequestService() as self =
         let repos = config' "github.repos"
         publicUri <- config' "public.uri"
         mergeRetries <- GetConfigValue config "merge.retries" 0
-        
+        let mergeTtl = GetConfigValue config "merge.ttl" 0.
+        mergeabilityRetries <- GetConfigValue config "mergeability.retries" 0
+        let mergeabilityPollStatusTtl = GetConfigValue config "mergeability.ttl" 0.
+
         // Validate
         ValidateConfig "github.token" token
         ValidateConfig "github.owner" owner
         ValidateConfig "github.repos" repos
         ValidateConfig "public.uri" publicUri
         ValidateConfig "merge.retries" mergeRetries
-        
+        ValidateConfig "merge.ttl" mergeTtl
+        ValidateConfig "mergeability.retries" mergeabilityRetries
+        ValidateConfig "mergeability.ttl" mergeabilityPollStatusTtl
+        mergeTTL <- TimeSpan.FromMilliseconds(mergeTtl.Value)
+        mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityPollStatusTtl.Value)
+
         // Use
         CreateWebHooks(repos.Value.Split(','))
 
