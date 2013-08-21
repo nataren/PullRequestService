@@ -73,6 +73,7 @@ type PullRequestService() as self =
     let GITHUB_API = Plug.New(new XUri("https://api.github.com"))
     let DATE_PATTERN = "yyyyMMdd"
     let logger = LogManager.GetLogger typedefof<PullRequestService>
+    let timerFactory = TaskTimerFactory.Create(self)
 
     // Supervisor agent
     let supervisor =
@@ -91,8 +92,7 @@ type PullRequestService() as self =
 
     // Merge agent
     let mergeAgent =
-        let timerFactory = self.TimerFactory
-        let cache = new ExpiringDictionary<XUri, int>(timerFactory)
+        let cache = new ExpiringDictionary<XUri, int>(timerFactory, false)
         cache.EntryExpired.Add <|
             fun args ->
                 let prUri, retry = args.Entry.Key, args.Entry.Value
@@ -109,14 +109,14 @@ type PullRequestService() as self =
             let rec loop (cache : ExpiringDictionary<XUri, int>) = async {
                 let! msg = inbox.Receive()
                 cache.Set(msg, 0, mergeTTL)
+                logger.DebugFormat("Queued '{0}' for merge in '{1}'", msg, mergeTTL)
                 return! loop cache
             }
             loop(cache)
 
     // Polling agent
     let pollAgent =
-        let timerFactory = self.TimerFactory
-        let cache = new ExpiringDictionary<XUri, int>(timerFactory)
+        let cache = new ExpiringDictionary<XUri, int>(timerFactory, false)
         cache.EntryExpired.Add <|
             fun args ->
                 let prUri, retry = args.Entry.Key, args.Entry.Value
@@ -136,6 +136,7 @@ type PullRequestService() as self =
             let rec loop (cache : ExpiringDictionary<XUri, int>) = async {
                 let! msg = inbox.Receive()
                 cache.Set(msg, 0, mergeabilityTTL)
+                logger.DebugFormat("Queued '{0}' for mergeability check in '{1}'", msg, mergeTTL)
                 return! loop cache
             }
             loop(cache)
