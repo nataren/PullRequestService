@@ -28,6 +28,7 @@ open Autofac
 open MindTouch.Dream
 open MindTouch.Tasking
 open MindTouch.Xml
+open MindTouch.Collections;
 open FSharp.Data.Json
 open FSharp.Data.Json.Extensions
 open Microsoft.FSharp.Collections
@@ -51,7 +52,7 @@ type Agent<'T> = MailboxProcessor<'T>
 [<DreamServiceConfig("github.owner", "string", "The owner of the repos we want to watch")>]
 [<DreamServiceConfig("github.repos", "string", "Comma separated list of repos to watch")>]
 [<DreamServiceConfig("public.uri", "string?", "The notify end-point's full public URI to use to communicate with this service")>]
-type PullRequestService() =
+type PullRequestService() as self =
     inherit DreamService()
 
     //--- Fields ---
@@ -59,41 +60,83 @@ type PullRequestService() =
     let mutable token = None
     let mutable owner = None
     let mutable publicUri = None
+    let mutable mergeRetries : int Option = None
     let DATE_PATTERN = "yyyyMMdd"
+    let POLL_STATUS_TTL = TimeSpan.FromSeconds(15.0)
+    let MERGE_TTL = TimeSpan.FromSeconds(2.0)
     let logger = LogManager.GetLogger typedefof<PullRequestService>
 
     // Supervisor agent
     let supervisor =
         Agent<Exception>.Start(fun inbox -> async {
             while true do
-                let!  err = inbox.Receive()
+                let! err = inbox.Receive()
                 logger.DebugFormat("An error ocurred in an agent: %A", err)
         })
+    
+    let Json(payload : string, headers : seq<KeyValuePair<string, string>>) =
+        new DreamMessage(DreamStatus.Ok, new DreamHeaders(headers), MimeType.JSON, payload)
+
+    let MergePullRequest (prUri : XUri) =
+        let mergePlug = Plug.New(prUri.At("merge"))
+        mergePlug.Put(Json("{}", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value) |]))
+
+    // Merge agent
+    let mergeAgent =
+        let timerFactory = self.TimerFactory
+        let cache = new ExpiringDictionary<XUri, int>(timerFactory)
+        Agent.Start <| fun inbox ->
+            let rec loop (cache : ExpiringDictionary<XUri, int>) = async {
+                let! msg = inbox.Receive()
+                cache.Set(msg, 0, MERGE_TTL)
+                return! loop cache
+            }
+            cache.EntryExpired.Add <| fun args ->
+                let prUri, retry = args.Entry.Key, args.Entry.Value
+                if retry <= mergeRetries.Value then
+                    try
+                        MergePullRequest prUri |> ignore
+                    with
+                        | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed -> supervisor.Post e
+                        | e ->
+                            cache.Set(prUri, retry + 1, POLL_STATUS_TTL)
+                            raise e
+                ()
+            loop(cache)
 
     // Polling agent
     let pollAgent =
-        Agent.Start(fun inbox ->
-            let rec loop (queue : Queue<XUri>) = async {
+        let timerFactory = self.TimerFactory
+        let cache = new ExpiringDictionary<XUri, int>(timerFactory)
+        Agent.Start <| fun inbox ->
+            let rec loop (cache : ExpiringDictionary<XUri, int>) = async {
                 let! msg = inbox.Receive()
-                queue.Enqueue(msg)
-                return! loop queue
+                cache.Set(msg, 0, POLL_STATUS_TTL)
+                return! loop cache
             }
-            loop (new Queue<XUri>()))
-
-    let mergeAgent =
-        Agent.Start(fun inbox ->
-            let rec loop = async {
-                return! loop
-            }
-            loop)
+            cache.EntryExpired.Add <| fun args ->
+                let prUri, retry = args.Entry.Key, args.Entry.Value
+                if retry <= mergeRetries.Value then
+                    try
+                        let resp = (Plug.New prUri).Get()
+                        let pr = JsonValue.Parse(resp.ToText())
+                        if pr?mergeable.AsBoolean() then
+                            mergeAgent.Post prUri
+                        else
+                            cache.Set(prUri, retry + 1, POLL_STATUS_TTL)
+                    with e ->
+                        cache.Set(prUri, retry + 1, POLL_STATUS_TTL)
+                        raise e
+                ()
+            loop(cache)
 
     //--- Functions ---
     let OpenPullRequest pr =
         let action = pr?action.AsString()
-        action = "opened" || action = "reopened"
+        action.EqualsInvariantIgnoreCase "opened" || action.EqualsInvariantIgnoreCase "reopened"
     
     let InvalidPullRequest pr =
-         OpenPullRequest pr && pr?pull_request?``base``?ref.AsString() = "master"
+         OpenPullRequest pr && pr?pull_request?``base``?ref.AsString().EqualsInvariantIgnoreCase "master"
 
     let AutoMergeablePullRequest pr =
         let action = pr?action.AsString()
@@ -103,22 +146,28 @@ type PullRequestService() =
 
     let UnknownMergeabilityPullRequest pr =
         let action = pr?action.AsString()
-        OpenPullRequest pr && pr?mergeable_state.AsString() = "unknown"
+        OpenPullRequest pr && pr?mergeable_state.AsString().EqualsInvariantIgnoreCase "unknown"
 
     let ValidateConfig key value =
         match value with
         | None -> raise(MissingConfig key)
         | _ -> ()
 
-    let GetConfigValue (doc : XDoc) (key : string) =
-        let configVal = doc.[key].AsText
+    // NOTE(cesarn): Using the third parameter as the type constraint
+    // since 'let' would not let me using constraints in angle brackets
+    let GetConfigValue (doc : XDoc) (key : string) (t : 'T) : 'T option =
+        let configVal = doc.[key].As<'T>()
+        if configVal.HasValue then
+            Some configVal.Value
+        else
+            None
+
+    let GetConfigValueStr (doc : XDoc) (key : string) =
+        let configVal = doc.[key].ToString()
         if configVal = null then
             None
         else
             Some configVal
-
-    let Json(payload : string, headers : seq<KeyValuePair<string, string>>) =
-        new DreamMessage(DreamStatus.Ok, new DreamHeaders(headers), MimeType.JSON, payload)
 
     let DeterminePullRequestType pr =
         let pullRequestUrl = pr?pull_request?url.AsString()
@@ -140,10 +189,6 @@ type PullRequestService() =
     let QueueMergePullRequest (prUri : XUri) =
         pollAgent.Post(prUri)
         DreamMessage.Ok()
-
-    let MergePullRequest (prUri : XUri) =
-        let mergePlug = Plug.New(prUri.At("merge"))
-        mergePlug.Put(Json("{}", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value) |]))
 
     // Webhooks methods
     let WebHookExist repo =
@@ -170,17 +215,19 @@ type PullRequestService() =
         // base.Start(config, container, result)
 
         // Gather
-        let config' = GetConfigValue config
+        let config' = GetConfigValueStr config
         token <- config' "github.token"
         owner <- config' "github.owner"
         let repos = config' "github.repos"
         publicUri <- config' "public.uri"
+        mergeRetries <- GetConfigValue config "merge.retries" 0
         
         // Validate
         ValidateConfig "github.token" token
         ValidateConfig "github.owner" owner
         ValidateConfig "github.repos" repos
         ValidateConfig "public.uri" publicUri
+        ValidateConfig "merge.retries" mergeRetries
         
         // Use
         CreateWebHooks(repos.Value.Split(','))
