@@ -119,7 +119,7 @@ type PullRequestService() as self =
                 let prUri, retry = args.Entry.Key, args.Entry.Value
                 if retry < mergeabilityRetries.Value then
                     try
-                        let resp = (Plug.New prUri).Get()
+                        let resp = Plug.New(prUri).Get()
                         let pr = JsonValue.Parse(resp.ToText())
                         let merged = pr?merged.AsBoolean()
                         let mergeable = pr?mergeable.AsBoolean()
@@ -140,7 +140,7 @@ type PullRequestService() as self =
             let rec loop (cache : ExpiringDictionary<XUri, int>) = async {
                 let! msg = inbox.Receive()
                 cache.Set(msg, 0, mergeabilityTTL)
-                logger.DebugFormat("Queued '{0}' for mergeability check in '{1}'", msg, mergeTTL)
+                logger.DebugFormat("Queued '{0}' for mergeability check in '{1}'", msg, mergeabilityTTL)
                 return! loop cache
             }
             loop(cache)
