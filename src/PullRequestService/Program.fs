@@ -97,7 +97,7 @@ type PullRequestService() as self =
                     try
                         MergePullRequest prUri |> ignore
                     with
-                        | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed -> supervisor.Post e
+                        | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed -> raise e
                         | e ->
                             cache.Set(prUri, retry + 1, MERGE_TTL)
                             raise e
@@ -233,7 +233,10 @@ type PullRequestService() as self =
         CreateWebHooks(repos.Value.Split(','))
 
         // Start the agents
+        mergeAgent.Error.Add(fun error -> supervisor.Post error)
         pollAgent.Error.Add(fun error -> supervisor.Post error)
+        supervisor.Start()
+        mergeAgent.Start()
         pollAgent.Start()
         result.Return()
         Seq.empty<IYield>.GetEnumerator()
