@@ -119,7 +119,7 @@ type PullRequestService() as self =
                 let prUri, retry = args.Entry.Key, args.Entry.Value
                 if retry < mergeabilityRetries.Value then
                     try
-                        let resp = Plug.New(prUri).Get()
+                        let resp = Plug.New(prUri).Get(Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value) |]))
                         let pr = JsonValue.Parse(resp.ToText())
                         let merged = pr?merged.AsBoolean()
                         let mergeable = pr?mergeable.AsBoolean()
