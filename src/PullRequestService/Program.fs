@@ -74,14 +74,6 @@ type PullRequestService() as self =
     let DATE_PATTERN = "yyyyMMdd"
     let logger = LogManager.GetLogger typedefof<PullRequestService>
     let timerFactory = TaskTimerFactory.Create(self)
-
-    // Supervisor agent
-    let supervisor =
-        Agent<Exception>.Start(fun inbox -> async {
-            while true do
-                let! err = inbox.Receive()
-                logger.DebugFormat("An error ocurred in an agent: %A", err)
-        })
     
     let Json(payload : string, headers : seq<KeyValuePair<string, string>>) =
         new DreamMessage(DreamStatus.Ok, new DreamHeaders(headers), MimeType.JSON, payload)
@@ -96,15 +88,20 @@ type PullRequestService() as self =
         cache.EntryExpired.Add <|
             fun args ->
                 let prUri, retry = args.Entry.Key, args.Entry.Value
-                if retry <= mergeRetries.Value then
+                if retry < mergeRetries.Value then
                     try
                         MergePullRequest prUri |> ignore
                     with
-                        | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed -> raise e
+                        | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed ||
+                            e.Response.Status = DreamStatus.Unauthorized ||
+                            e.Response.Status = DreamStatus.Forbidden -> raise e
                         | e ->
                             cache.Set(prUri, retry + 1, mergeTTL)
+                            logger.Debug(String.Format("Something failed, will try to merge '{0}' again in '{1}'", prUri, mergeTTL), e)
                             raise e
-                ()
+                else
+                    logger.DebugFormat("The maximum number of merge retries ({1}) for '{0}' has been reached thus it will be ignored from now on", prUri, mergeRetries.Value)
+
         Agent.Start <| fun inbox ->
             let rec loop (cache : ExpiringDictionary<XUri, int>) = async {
                 let! msg = inbox.Receive()
@@ -120,18 +117,25 @@ type PullRequestService() as self =
         cache.EntryExpired.Add <|
             fun args ->
                 let prUri, retry = args.Entry.Key, args.Entry.Value
-                if retry <= mergeabilityRetries.Value then
+                if retry < mergeabilityRetries.Value then
                     try
                         let resp = (Plug.New prUri).Get()
                         let pr = JsonValue.Parse(resp.ToText())
-                        if pr?mergeable.AsBoolean() then
+                        let merged = pr?merged.AsBoolean()
+                        let mergeable = pr?mergeable.AsBoolean()
+                        let mergeableState = pr?mergeable_state.AsString()
+                        if not merged && mergeableState.EqualsInvariantIgnoreCase("clean") && mergeable then
                             mergeAgent.Post prUri
-                        else
+                        else if not merged && mergeableState.EqualsInvariantIgnoreCase("unknown") then
                             cache.Set(prUri, retry + 1, mergeabilityTTL)
+                            logger.DebugFormat("Will poll '{0}' meargeability status again in '{1}'", prUri, mergeabilityTTL)
                     with e ->
                         cache.Set(prUri, retry + 1, mergeabilityTTL)
+                        logger.Debug(String.Format("Something failed, will poll '{0}' meargeability status again in '{1}'", prUri, mergeabilityTTL), e)
                         raise e
-                ()
+                else
+                    logger.DebugFormat("The maximum number of retries ({1}) for polling mergeability status for '{0}' has been reached thus ignored from now on", prUri, mergeabilityRetries.Value)
+        
         Agent.Start <| fun inbox ->
             let rec loop (cache : ExpiringDictionary<XUri, int>) = async {
                 let! msg = inbox.Receive()
@@ -144,10 +148,10 @@ type PullRequestService() as self =
     //--- Functions ---
     let OpenPullRequest pr =
         let action = pr?action.AsString()
-        action.EqualsInvariantIgnoreCase "opened" || action.EqualsInvariantIgnoreCase "reopened"
+        action.EqualsInvariantIgnoreCase("opened") || action.EqualsInvariantIgnoreCase("reopened")
     
     let InvalidPullRequest pr =
-         OpenPullRequest pr && pr?pull_request?``base``?ref.AsString().EqualsInvariantIgnoreCase "master"
+         OpenPullRequest pr && pr?pull_request?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
 
     let AutoMergeablePullRequest pr =
         let action = pr?action.AsString()
@@ -156,8 +160,7 @@ type PullRequestService() as self =
         OpenPullRequest pr && pr?mergeable.AsBoolean() && (targetBranchDate - DateTime.UtcNow.Date).Days >= 6
 
     let UnknownMergeabilityPullRequest pr =
-        let action = pr?action.AsString()
-        OpenPullRequest pr && pr?mergeable_state.AsString().EqualsInvariantIgnoreCase "unknown"
+        OpenPullRequest pr && pr?pull_request?mergeable_state.AsString() = "unknown"
 
     let ValidateConfig key value =
         match value with
@@ -174,7 +177,7 @@ type PullRequestService() as self =
             None
 
     let GetConfigValueStr (doc : XDoc) (key : string) =
-        let configVal = doc.[key].ToString()
+        let configVal = doc.[key].AsText
         if configVal = null then
             None
         else
@@ -198,8 +201,10 @@ type PullRequestService() as self =
             .Post(Json("""{ "state" : "closed"  }""", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value); new KeyValuePair<_, _>("X-HTTP-Method-Override", "PATCH") |]))
 
     let QueueMergePullRequest (prUri : XUri) =
+        let msg = String.Format("Will queue '{0}' for mergeability polling", prUri)
+        logger.DebugFormat(msg)
         pollAgent.Post(prUri)
-        DreamMessage.Ok()
+        DreamMessage.Ok(MimeType.JSON, "Queue for mergeability polling"B)
 
     // Webhooks methods
     let WebHookExist repo =
@@ -247,16 +252,9 @@ type PullRequestService() as self =
         ValidateConfig "mergeability.ttl" mergeabilityTtl
         mergeTTL <- TimeSpan.FromMilliseconds(mergeTtl.Value)
         mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityTtl.Value)
-
+            
         // Use
         CreateWebHooks(repos.Value.Split(','))
-
-        // Start the agents
-        mergeAgent.Error.Add(fun error -> supervisor.Post error)
-        pollAgent.Error.Add(fun error -> supervisor.Post error)
-        supervisor.Start()
-        mergeAgent.Start()
-        pollAgent.Start()
         result.Return()
         Seq.empty<IYield>.GetEnumerator()
 
