@@ -233,7 +233,7 @@ type PullRequestService() as self =
         mergeRetries <- GetConfigValue config "merge.retries" 0
         let mergeTtl = GetConfigValue config "merge.ttl" 0.
         mergeabilityRetries <- GetConfigValue config "mergeability.retries" 0
-        let mergeabilityPollStatusTtl = GetConfigValue config "mergeability.ttl" 0.
+        let mergeabilityTtl = GetConfigValue config "mergeability.ttl" 0.
 
         // Validate
         ValidateConfig "github.token" token
@@ -243,9 +243,9 @@ type PullRequestService() as self =
         ValidateConfig "merge.retries" mergeRetries
         ValidateConfig "merge.ttl" mergeTtl
         ValidateConfig "mergeability.retries" mergeabilityRetries
-        ValidateConfig "mergeability.ttl" mergeabilityPollStatusTtl
+        ValidateConfig "mergeability.ttl" mergeabilityTtl
         mergeTTL <- TimeSpan.FromMilliseconds(mergeTtl.Value)
-        mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityPollStatusTtl.Value)
+        mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityTtl.Value)
 
         // Use
         CreateWebHooks(repos.Value.Split(','))
