@@ -41,6 +41,10 @@ Create a file `pr.config` with the following content, and change the values appr
 				<github.owner>{OWNER}</github.owner>
 				<github.repos>{REPOS}</github.repos>
 				<public.uri>{ROUTE_TO_NOTIFY_END_POINT</public.uri>
+				<merge.retries>{NUMBER_OF_MERGE_RETRIES}</merge.retries>
+                <merge.ttl>{MILLISECONDS_TO_WAIT_BEFORE_TRYING_TO_MERGE_PULL_REQUEST_AGAIN}</merge.ttl>
+                <mergeability.retries>{NUMBER_OF_MERGEABILITY_CHECK_RETRIES}</mergeability.retries>
+                <mergeability.ttl>{MILLISECONDS_TO_WAIT_BEFORE_CHECKING_MERGEABILITY}</mergeability.ttl>
 			</config>
 		</action>
 	</script>
