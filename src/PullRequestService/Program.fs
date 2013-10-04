@@ -161,7 +161,7 @@ type PullRequestService() as self =
         DateTime.ParseExact(targetBranch.Substring(targetBranch.Length - DATE_PATTERN.Length), DATE_PATTERN, null)
 
     let AutoMergeablePullRequest pr =
-        OpenPullRequest pr && pr?mergeable.AsBoolean() && targetOpenBranch(getTargetBranchDate pr)
+        OpenPullRequest pr && pr?pull_request?mergeable.AsBoolean() && targetOpenBranch(getTargetBranchDate pr)
 
     let UnknownMergeabilityPullRequest pr =
         OpenPullRequest pr && targetOpenBranch(getTargetBranchDate pr) && pr?pull_request?mergeable_state.AsString() = "unknown"
