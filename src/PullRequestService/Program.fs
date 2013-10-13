@@ -229,7 +229,32 @@ type PullRequestService() as self =
                 CreateWebHook repo |> ignore
             with
             | ex -> raise(new Exception(String.Format("Repo '{0}' failed to initialize ({1})", repo, ex))))
+            
+    let GetOpenPullRequests repo =
+        let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value) |])
+        JsonValue.Parse(GITHUB_API.At("repos", owner.Value, repo, "pulls").Get(auth).ToText()).AsArray()
 
+    let ProcessPullRequest pr =
+        match DeterminePullRequestType pr with
+        | Invalid i -> ClosePullRequest i
+        | UnknownMergeability uri -> QueueMergePullRequest uri
+        | AutoMergeable uri -> MergePullRequest uri
+        | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to be handled by a human since is not targeting an open branch or the master branch"B)
+    
+    let ProcessPullRequests prs =
+        prs |> Seq.iter (fun pr -> ProcessPullRequest pr |> ignore)
+        
+    let ProcessRepos repos =
+        repos
+        |> Seq.iter (fun repo ->
+            try
+                GetOpenPullRequests repo
+            with
+            | ex ->
+                logger.Debug(String.Format("An error happened processing repo '{0}'", repo), ex)
+                JsonValue.Array()
+        |> ProcessPullRequests
+        
     override this.Start(config : XDoc, container : ILifetimeScope, result : Result) =
         // NOTE(cesarn): Commented out for now
         // base.Start(config, container, result)
@@ -258,7 +283,9 @@ type PullRequestService() as self =
         mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityTtl.Value)
             
         // Use
-        CreateWebHooks(repos.Value.Split(','))
+        let allRepos = repos.Value.Split(',')
+        CreateWebHooks allRepos
+        ProcessRepos allRepos
         result.Return()
         Seq.empty<IYield>.GetEnumerator()
 
@@ -266,11 +293,7 @@ type PullRequestService() as self =
     member this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
         let requestText = request.ToText()
         logger.DebugFormat("Payload: ({0})", requestText)
-        match DeterminePullRequestType(JsonValue.Parse(requestText)) with
-        | Invalid i -> ClosePullRequest i
-        | UnknownMergeability uri -> QueueMergePullRequest uri
-        | AutoMergeable uri -> MergePullRequest uri
-        | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to be handled by a human since is not targeting an open branch or the master branch"B)
+        ProcessPullRequest(JsonValue.Parse(requestText))
 
     [<DreamFeature("GET:status", "Check the service's status")>]
     member this.GetStatus (context : DreamContext) (request : DreamMessage) =
