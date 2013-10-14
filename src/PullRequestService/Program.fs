@@ -230,7 +230,8 @@ type PullRequestService() as self =
             with
             | ex -> raise(new Exception(String.Format("Repo '{0}' failed to initialize ({1})", repo, ex))))
             
-    let GetOpenPullRequests repo =
+    let GetOpenPullRequests (repo : string) =
+        logger.DebugFormat("Getting the open pull requests for repo '{0}'", repo)
         let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value) |])
         JsonValue.Parse(GITHUB_API.At("repos", owner.Value, repo, "pulls").Get(auth).ToText()).AsArray()
 
@@ -242,17 +243,17 @@ type PullRequestService() as self =
         | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to be handled by a human since is not targeting an open branch or the master branch"B)
     
     let ProcessPullRequests prs =
-        prs |> Seq.iter (fun pr -> ProcessPullRequest pr |> ignore)
-        
-    let ProcessRepos repos =
+        prs |> Seq.map (fun pr -> ProcessPullRequest pr)
+
+    let ProcessRepos (repos : string[]) =
         repos
-        |> Seq.iter (fun repo ->
+        |> Seq.map (fun repo->
             try
+                logger.DebugFormat("Processing repo '{0}'", repo)
                 GetOpenPullRequests repo
             with
-            | ex ->
-                logger.Debug(String.Format("An error happened processing repo '{0}'", repo), ex)
-                JsonValue.Array()
+            | ex -> JsonValue.Parse("[]").AsArray())
+        |> Seq.concat
         |> ProcessPullRequests
         
     override this.Start(config : XDoc, container : ILifetimeScope, result : Result) =
@@ -285,7 +286,7 @@ type PullRequestService() as self =
         // Use
         let allRepos = repos.Value.Split(',')
         CreateWebHooks allRepos
-        ProcessRepos allRepos
+        ProcessRepos allRepos |> Seq.iter (fun resp -> printfn "%s" <| resp.ToText())
         result.Return()
         Seq.empty<IYield>.GetEnumerator()
 
