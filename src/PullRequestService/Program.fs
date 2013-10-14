@@ -146,25 +146,25 @@ type PullRequestService() as self =
             loop(cache)
 
     //--- Functions ---
-    let OpenPullRequest pr =
-        let action = pr?action.AsString()
+    let OpenPullRequest prEvent =
+        let action = prEvent?action.AsString()
         action.EqualsInvariantIgnoreCase("opened") || action.EqualsInvariantIgnoreCase("reopened")
     
-    let InvalidPullRequest pr =
-         OpenPullRequest pr && pr?pull_request?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
+    let InvalidPullRequest prEvent =
+         OpenPullRequest prEvent && prEvent?pull_request?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
 
     let targetOpenBranch targetBranchDate =
         (targetBranchDate - DateTime.UtcNow.Date).Days >= 6
 
-    let getTargetBranchDate pr =
-        let targetBranch = pr?pull_request?``base``?ref.AsString()
+    let getTargetBranchDate prEvent =
+        let targetBranch = prEvent?pull_request?``base``?ref.AsString()
         DateTime.ParseExact(targetBranch.Substring(targetBranch.Length - DATE_PATTERN.Length), DATE_PATTERN, null)
 
-    let AutoMergeablePullRequest pr =
-        OpenPullRequest pr && pr?pull_request?mergeable.AsBoolean() && targetOpenBranch(getTargetBranchDate pr)
+    let AutoMergeablePullRequest prEvent =
+        OpenPullRequest prEvent && prEvent?pull_request?mergeable.AsBoolean() && targetOpenBranch(getTargetBranchDate prEvent)
 
-    let UnknownMergeabilityPullRequest pr =
-        OpenPullRequest pr && targetOpenBranch(getTargetBranchDate pr) && pr?pull_request?mergeable_state.AsString() = "unknown"
+    let UnknownMergeabilityPullRequest prEvent =
+        OpenPullRequest prEvent && targetOpenBranch(getTargetBranchDate prEvent) && prEvent?pull_request?mergeable_state.AsString() = "unknown"
 
     let ValidateConfig key value =
         match value with
@@ -187,13 +187,24 @@ type PullRequestService() as self =
         else
             Some configVal
 
-    let DeterminePullRequestType pr =
-        let pullRequestUrl = pr?pull_request?url.AsString()
-        if InvalidPullRequest pr then
+    let DeterminePullRequestTypeFromEvent prEvent =
+        let pullRequestUrl = prEvent?pull_request?url.AsString()
+        if InvalidPullRequest prEvent then
             Invalid (new XUri(pullRequestUrl))
-        else if UnknownMergeabilityPullRequest pr then
+        else if UnknownMergeabilityPullRequest prEvent then
             UnknownMergeability (new XUri(pullRequestUrl))
-        else if AutoMergeablePullRequest pr then
+        else if AutoMergeablePullRequest prEvent then
+            AutoMergeable (new XUri(pullRequestUrl))
+        else
+            Skip
+
+    let DeterminePullRequestType2 pr =
+        let pullRequestUrl = prEvent?pull_request?url.AsString()
+        if InvalidPullRequest prEvent then
+            Invalid (new XUri(pullRequestUrl))
+        else if UnknownMergeabilityPullRequest prEvent then
+            UnknownMergeability (new XUri(pullRequestUrl))
+        else if AutoMergeablePullRequest prEvent then
             AutoMergeable (new XUri(pullRequestUrl))
         else
             Skip
@@ -235,13 +246,17 @@ type PullRequestService() as self =
         let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value) |])
         JsonValue.Parse(GITHUB_API.At("repos", owner.Value, repo, "pulls").Get(auth).ToText()).AsArray()
 
-    let ProcessPullRequest pr =
-        match DeterminePullRequestType pr with
+    let ProcessPullRequestEvent prEvent =
+        match DeterminePullRequestTypeFromEvent prEvent with
         | Invalid i -> ClosePullRequest i
         | UnknownMergeability uri -> QueueMergePullRequest uri
         | AutoMergeable uri -> MergePullRequest uri
         | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to be handled by a human since is not targeting an open branch or the master branch"B)
     
+    let ProcessPullRequest pr =
+        match DeterminePullRequestType pr with
+        | 
+
     let ProcessPullRequests prs =
         prs |> Seq.map (fun pr -> ProcessPullRequest pr)
 
@@ -294,7 +309,7 @@ type PullRequestService() as self =
     member this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
         let requestText = request.ToText()
         logger.DebugFormat("Payload: ({0})", requestText)
-        ProcessPullRequest(JsonValue.Parse(requestText))
+        ProcessPullRequestEvent(JsonValue.Parse(requestText))
 
     [<DreamFeature("GET:status", "Check the service's status")>]
     member this.GetStatus (context : DreamContext) (request : DreamMessage) =
