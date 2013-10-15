@@ -81,6 +81,10 @@ type PullRequestService() as self =
     let MergePullRequest (prUri : XUri) =
         let mergePlug = Plug.New(prUri.At("merge"))
         mergePlug.Put(Json("{}", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value) |]))
+        
+    let IsMergeable pr =
+        let mergeable = pr?mergeable
+        mergeable <> JsonValue.Null && mergeable.AsBoolean()
 
     // Merge agent
     let mergeAgent =
@@ -122,7 +126,7 @@ type PullRequestService() as self =
                         let resp = Plug.New(prUri).Get(Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value) |]))
                         let pr = JsonValue.Parse(resp.ToText())
                         let merged = pr?merged.AsBoolean()
-                        let mergeable = pr?mergeable.AsBoolean()
+                        let mergeable = IsMergeable pr
                         let mergeableState = pr?mergeable_state.AsString()
                         if not merged && mergeableState.EqualsInvariantIgnoreCase("clean") && mergeable then
                             mergeAgent.Post prUri
@@ -160,8 +164,8 @@ type PullRequestService() as self =
         let targetBranch = pr?pull_request?``base``?ref.AsString()
         DateTime.ParseExact(targetBranch.Substring(targetBranch.Length - DATE_PATTERN.Length), DATE_PATTERN, null)
 
-    let AutoMergeablePullRequest pr =
-        OpenPullRequest pr && pr?pull_request?mergeable.AsBoolean() && targetOpenBranch(getTargetBranchDate pr)
+    let AutoMergeablePullRequest prEvent =
+        OpenPullRequest prEvent && IsMergeable(prEvent?pull_request) && targetOpenBranch(getTargetBranchDate prEvent)
 
     let UnknownMergeabilityPullRequest pr =
         OpenPullRequest pr && targetOpenBranch(getTargetBranchDate pr) && pr?pull_request?mergeable_state.AsString() = "unknown"
