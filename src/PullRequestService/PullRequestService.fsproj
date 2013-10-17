@@ -39,13 +39,10 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <OutputPath>..\redist</OutputPath>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <StartArguments>
-    </StartArguments>
-    <StartWorkingDirectory>
-    </StartWorkingDirectory>
-    <StartAction>Project</StartAction>
-    <StartProgram>
-    </StartProgram>
+    <StartArguments>config prod.config</StartArguments>
+    <StartWorkingDirectory>C:\Users\César López-Natarén\src\PullRequestService\src\redist\</StartWorkingDirectory>
+    <StartAction>Program</StartAction>
+    <StartProgram>C:\Users\César López-Natarén\src\PullRequestService\src\redist\mindtouch.host.exe</StartProgram>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <OutputPath>..\bin\</OutputPath>

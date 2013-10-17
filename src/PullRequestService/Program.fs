@@ -81,6 +81,10 @@ type PullRequestService() as self =
     let MergePullRequest (prUri : XUri) =
         let mergePlug = Plug.New(prUri.At("merge"))
         mergePlug.Put(Json("{}", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value) |]))
+        
+    let IsMergeable pr =
+        let mergeable = pr?mergeable
+        mergeable <> JsonValue.Null && mergeable.AsBoolean()
 
     // Merge agent
     let mergeAgent =
@@ -122,7 +126,7 @@ type PullRequestService() as self =
                         let resp = Plug.New(prUri).Get(Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value) |]))
                         let pr = JsonValue.Parse(resp.ToText())
                         let merged = pr?merged.AsBoolean()
-                        let mergeable = pr?mergeable.AsBoolean()
+                        let mergeable = IsMergeable pr
                         let mergeableState = pr?mergeable_state.AsString()
                         if not merged && mergeableState.EqualsInvariantIgnoreCase("clean") && mergeable then
                             mergeAgent.Post prUri
@@ -146,25 +150,36 @@ type PullRequestService() as self =
             loop(cache)
 
     //--- Functions ---
-    let OpenPullRequest prEvent =
+    let OpenPullRequestEvent prEvent =
         let action = prEvent?action.AsString()
         action.EqualsInvariantIgnoreCase("opened") || action.EqualsInvariantIgnoreCase("reopened")
+
+    let InvalidPullRequest pr =
+        pr?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
     
-    let InvalidPullRequest prEvent =
-         OpenPullRequest prEvent && prEvent?pull_request?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
+    let InvalidPullRequestEvent prEvent =
+         OpenPullRequestEvent prEvent && InvalidPullRequest(prEvent?pull_request)
 
     let targetOpenBranch targetBranchDate =
         (targetBranchDate - DateTime.UtcNow.Date).Days >= 6
 
-    let getTargetBranchDate prEvent =
-        let targetBranch = prEvent?pull_request?``base``?ref.AsString()
+    let getTargetBranchDate pr =
+        let targetBranch = pr?``base``?ref.AsString()
         DateTime.ParseExact(targetBranch.Substring(targetBranch.Length - DATE_PATTERN.Length), DATE_PATTERN, null)
 
-    let AutoMergeablePullRequest prEvent =
-        OpenPullRequest prEvent && prEvent?pull_request?mergeable.AsBoolean() && targetOpenBranch(getTargetBranchDate prEvent)
+    let AutoMergeablePullRequest pr =
+        IsMergeable pr && targetOpenBranch(getTargetBranchDate pr)
 
-    let UnknownMergeabilityPullRequest prEvent =
-        OpenPullRequest prEvent && targetOpenBranch(getTargetBranchDate prEvent) && prEvent?pull_request?mergeable_state.AsString() = "unknown"
+    let AutoMergeablePullRequestEvent prEvent =
+        let pr = prEvent?pull_request
+        OpenPullRequestEvent prEvent && AutoMergeablePullRequest pr
+
+    let UnknownMergeabilityPullRequest pr =
+        targetOpenBranch(getTargetBranchDate pr) && pr?mergeable_state.AsString() = "unknown"
+
+    let UnknownMergeabilityPullRequestEvent prEvent =
+        let pr = prEvent?pull_request
+        OpenPullRequestEvent prEvent && UnknownMergeabilityPullRequest pr
 
     let ValidateConfig key value =
         match value with
@@ -186,28 +201,27 @@ type PullRequestService() as self =
             None
         else
             Some configVal
+            
+    let DeterminePullRequestType pr =
+        let pullRequestUrl = pr?url.AsString()
+        let state = pr?state.AsString()
+        if(not(state.EqualsInvariantIgnoreCase("open") || state.EqualsInvariantIgnoreCase("reopen"))) then
+            Skip
+        else if InvalidPullRequest pr then
+            Invalid (new XUri(pullRequestUrl))
+        else if UnknownMergeabilityPullRequest pr then
+            UnknownMergeability (new XUri(pullRequestUrl))
+        else if AutoMergeablePullRequest pr then
+            AutoMergeable (new XUri(pullRequestUrl))
+        else
+            Skip
 
     let DeterminePullRequestTypeFromEvent prEvent =
-        let pullRequestUrl = prEvent?pull_request?url.AsString()
-        if InvalidPullRequest prEvent then
-            Invalid (new XUri(pullRequestUrl))
-        else if UnknownMergeabilityPullRequest prEvent then
-            UnknownMergeability (new XUri(pullRequestUrl))
-        else if AutoMergeablePullRequest prEvent then
-            AutoMergeable (new XUri(pullRequestUrl))
-        else
+        let pr = prEvent?pull_request
+        let pullRequestUrl = pr?url.AsString()
+        if(not(OpenPullRequestEvent prEvent)) then
             Skip
-
-    let DeterminePullRequestType2 pr =
-        let pullRequestUrl = prEvent?pull_request?url.AsString()
-        if InvalidPullRequest prEvent then
-            Invalid (new XUri(pullRequestUrl))
-        else if UnknownMergeabilityPullRequest prEvent then
-            UnknownMergeability (new XUri(pullRequestUrl))
-        else if AutoMergeablePullRequest prEvent then
-            AutoMergeable (new XUri(pullRequestUrl))
-        else
-            Skip
+        else DeterminePullRequestType pr
 
     //--- Methods ---
     // Pull requests methods
@@ -252,10 +266,10 @@ type PullRequestService() as self =
         | UnknownMergeability uri -> QueueMergePullRequest uri
         | AutoMergeable uri -> MergePullRequest uri
         | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to be handled by a human since is not targeting an open branch or the master branch"B)
-    
-    let ProcessPullRequest pr =
-        match DeterminePullRequestType pr with
-        | 
+
+   // let ProcessPullRequest pr =
+   //   match DeterminePullRequestType pr with
+   //   | 
 
     let ProcessPullRequests prs =
         prs |> Seq.map (fun pr -> ProcessPullRequest pr)
