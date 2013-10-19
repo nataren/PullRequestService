@@ -150,9 +150,8 @@ type PullRequestService() as self =
             loop(cache)
 
     //--- Functions ---
-    let OpenPullRequestEvent prEvent =
-        let action = prEvent?action.AsString()
-        action.EqualsInvariantIgnoreCase("opened") || action.EqualsInvariantIgnoreCase("reopened")
+    let OpenPullRequest (state : string) =
+        state.EqualsInvariantIgnoreCase("opened") || state.EqualsInvariantIgnoreCase("reopened")
 
     let InvalidPullRequest pr =
         pr?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
@@ -193,8 +192,7 @@ type PullRequestService() as self =
             
     let DeterminePullRequestType pr =
         let pullRequestUrl = pr?url.AsString()
-        let state = pr?state.AsString()
-        if not <| state.EqualsInvariantIgnoreCase("open") || state.EqualsInvariantIgnoreCase("reopen") then
+        if not <| OpenPullRequest(pr?state.AsString()) then
             Skip
         else if InvalidPullRequest pr then
             Invalid (new XUri(pullRequestUrl))
@@ -206,11 +204,9 @@ type PullRequestService() as self =
             Skip
 
     let DeterminePullRequestTypeFromEvent prEvent =
-        let pr = prEvent?pull_request
-        let pullRequestUrl = pr?url.AsString()
-        if not <| OpenPullRequestEvent prEvent then
+        if not <| OpenPullRequest(prEvent?action.AsString()) then
             Skip
-        else DeterminePullRequestType pr
+        else DeterminePullRequestType <| prEvent?pull_request
 
     //--- Methods ---
     // Pull requests methods
