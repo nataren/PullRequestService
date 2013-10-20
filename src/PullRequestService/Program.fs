@@ -78,13 +78,64 @@ type PullRequestService() as self =
     let Json(payload : string, headers : seq<KeyValuePair<string, string>>) =
         new DreamMessage(DreamStatus.Ok, new DreamHeaders(headers), MimeType.JSON, payload)
 
+        // Pull requests methods
+    let ClosePullRequest (prUri : XUri) =
+        Plug.New(prUri)
+            .Post(Json("""{ "state" : "closed"  }""", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value); new KeyValuePair<_, _>("X-HTTP-Method-Override", "PATCH") |]))
+
+    let QueueMergePullRequest (prUri : XUri) =
+        let msg = String.Format("Will queue '{0}' for mergeability polling", prUri)
+        logger.DebugFormat(msg)
+        pollAgent.Post(prUri)
+        DreamMessage.Ok(MimeType.JSON, "Queue for mergeability polling"B)
+
     let MergePullRequest (prUri : XUri) =
         let mergePlug = Plug.New(prUri.At("merge"))
         mergePlug.Put(Json("{}", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value) |]))
         
     let IsMergeable pr =
         let mergeable = pr?mergeable
-        mergeable <> JsonValue.Null && mergeable.AsBoolean()
+        not(pr?merged.AsBoolean()) && mergeable <> JsonValue.Null && mergeable.AsBoolean() &&
+        pr?mergeable_state.AsString().EqualsInvariantIgnoreCase("clean")
+
+    let OpenPullRequest (state : string) =
+        state.EqualsInvariantIgnoreCase("opened") || state.EqualsInvariantIgnoreCase("reopened")
+
+    let InvalidPullRequest pr =
+        pr?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
+    
+    let targetOpenBranch targetBranchDate =
+        (targetBranchDate - DateTime.UtcNow.Date).Days >= 6
+
+    let getTargetBranchDate pr =
+        let targetBranch = pr?``base``?ref.AsString()
+        DateTime.ParseExact(targetBranch.Substring(targetBranch.Length - DATE_PATTERN.Length), DATE_PATTERN, null)
+
+    let AutoMergeablePullRequest pr =
+        IsMergeable pr && targetOpenBranch(getTargetBranchDate pr)
+
+    let UnknownMergeabilityPullRequest pr =
+        targetOpenBranch(getTargetBranchDate pr) && pr?mergeable_state.AsString().EqualsInvariantIgnoreCase("unknown")
+
+    let DeterminePullRequestType pr =
+        let pullRequestUrl = pr?url.AsString()
+        if not <| OpenPullRequest(pr?state.AsString()) then
+            Skip
+        else if InvalidPullRequest pr then
+            Invalid (new XUri(pullRequestUrl))
+        else if UnknownMergeabilityPullRequest pr then
+            UnknownMergeability (new XUri(pullRequestUrl))
+        else if AutoMergeablePullRequest pr then
+            AutoMergeable (new XUri(pullRequestUrl))
+        else
+            Skip
+            
+    let ProcessPullRequestType prEventType =
+        match prEventType with
+        | Invalid i -> ClosePullRequest i
+        | UnknownMergeability uri -> QueueMergePullRequest uri
+        | AutoMergeable uri -> MergePullRequest uri
+        | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to be handled by a human since is not targeting an open branch or the master branch"B)
 
     // Merge agent
     let mergeAgent =
@@ -125,14 +176,7 @@ type PullRequestService() as self =
                     try
                         let resp = Plug.New(prUri).Get(Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value) |]))
                         let pr = JsonValue.Parse(resp.ToText())
-                        let merged = pr?merged.AsBoolean()
-                        let mergeable = IsMergeable pr
-                        let mergeableState = pr?mergeable_state.AsString()
-                        if not merged && mergeableState.EqualsInvariantIgnoreCase("clean") && mergeable then
-                            mergeAgent.Post prUri
-                        else if not merged && mergeableState.EqualsInvariantIgnoreCase("unknown") then
-                            cache.Set(prUri, retry + 1, mergeabilityTTL)
-                            logger.DebugFormat("Will poll '{0}' meargeability status again in '{1}'", prUri, mergeabilityTTL)
+                        pr |> DeterminePullRequestType |> ProcessPullRequestType
                     with e ->
                         cache.Set(prUri, retry + 1, mergeabilityTTL)
                         logger.Debug(String.Format("Something failed, will poll '{0}' meargeability status again in '{1}'", prUri, mergeabilityTTL), e)
@@ -150,25 +194,6 @@ type PullRequestService() as self =
             loop(cache)
 
     //--- Functions ---
-    let OpenPullRequest (state : string) =
-        state.EqualsInvariantIgnoreCase("opened") || state.EqualsInvariantIgnoreCase("reopened")
-
-    let InvalidPullRequest pr =
-        pr?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
-    
-    let targetOpenBranch targetBranchDate =
-        (targetBranchDate - DateTime.UtcNow.Date).Days >= 6
-
-    let getTargetBranchDate pr =
-        let targetBranch = pr?``base``?ref.AsString()
-        DateTime.ParseExact(targetBranch.Substring(targetBranch.Length - DATE_PATTERN.Length), DATE_PATTERN, null)
-
-    let AutoMergeablePullRequest pr =
-        IsMergeable pr && targetOpenBranch(getTargetBranchDate pr)
-
-    let UnknownMergeabilityPullRequest pr =
-        targetOpenBranch(getTargetBranchDate pr) && pr?mergeable_state.AsString() = "unknown"
-
     let ValidateConfig key value =
         match value with
         | None -> raise(MissingConfig key)
@@ -189,19 +214,6 @@ type PullRequestService() as self =
             None
         else
             Some configVal
-            
-    let DeterminePullRequestType pr =
-        let pullRequestUrl = pr?url.AsString()
-        if not <| OpenPullRequest(pr?state.AsString()) then
-            Skip
-        else if InvalidPullRequest pr then
-            Invalid (new XUri(pullRequestUrl))
-        else if UnknownMergeabilityPullRequest pr then
-            UnknownMergeability (new XUri(pullRequestUrl))
-        else if AutoMergeablePullRequest pr then
-            AutoMergeable (new XUri(pullRequestUrl))
-        else
-            Skip
 
     let DeterminePullRequestTypeFromEvent prEvent =
         if not <| OpenPullRequest(prEvent?action.AsString()) then
@@ -209,17 +221,6 @@ type PullRequestService() as self =
         else DeterminePullRequestType <| prEvent?pull_request
 
     //--- Methods ---
-    // Pull requests methods
-    let ClosePullRequest (prUri : XUri) =
-        Plug.New(prUri)
-            .Post(Json("""{ "state" : "closed"  }""", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value); new KeyValuePair<_, _>("X-HTTP-Method-Override", "PATCH") |]))
-
-    let QueueMergePullRequest (prUri : XUri) =
-        let msg = String.Format("Will queue '{0}' for mergeability polling", prUri)
-        logger.DebugFormat(msg)
-        pollAgent.Post(prUri)
-        DreamMessage.Ok(MimeType.JSON, "Queue for mergeability polling"B)
-
     // Webhooks methods
     let WebHookExist repo =
         let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value) |])
@@ -245,25 +246,19 @@ type PullRequestService() as self =
         let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token.Value) |])
         JsonValue.Parse(GITHUB_API.At("repos", owner.Value, repo, "pulls").Get(auth).ToText()).AsArray()
 
-    let ProcessPullRequestType prEventType =
-        match prEventType with
-        | Invalid i -> ClosePullRequest i
-        | UnknownMergeability uri -> QueueMergePullRequest uri
-        | AutoMergeable uri -> MergePullRequest uri
-        | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to be handled by a human since is not targeting an open branch or the master branch"B)
-
     let ProcessPullRequests prs =
-        prs |> Seq.map (fun pr -> ProcessPullRequestType <| DeterminePullRequestType pr)
+        prs |> Seq.iter (fun pr -> pollAgent.Post(new XUri(pr?url.AsString())))
 
     let ProcessRepos (repos : string[]) =
         repos
-        |> Seq.map (fun repo->
+        |> Array.map (fun repo->
             try
                 logger.DebugFormat("Processing repo '{0}'", repo)
                 GetOpenPullRequests repo
             with
             | ex -> JsonValue.Parse("[]").AsArray())
-        |> Seq.concat
+        |> Array.concat
+        |> Array.sortBy (fun pr -> pr?created_at.AsDateTime())
         |> ProcessPullRequests
         
     override this.Start(config : XDoc, container : ILifetimeScope, result : Result) =
@@ -296,7 +291,7 @@ type PullRequestService() as self =
         // Use
         let allRepos = repos.Value.Split(',')
         CreateWebHooks allRepos
-        ProcessRepos allRepos |> Seq.iter (fun resp -> printfn "%s" <| resp.ToText())
+        ProcessRepos allRepos
         result.Return()
         Seq.empty<IYield>.GetEnumerator()
 
@@ -304,8 +299,10 @@ type PullRequestService() as self =
     member this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
         let requestText = request.ToText()
         logger.DebugFormat("Payload: ({0})", requestText)
-        ProcessPullRequestType(DeterminePullRequestTypeFromEvent <| JsonValue.Parse(requestText))
+        JsonValue.Parse(requestText)
+        |> DeterminePullRequestTypeFromEvent
+        |> ProcessPullRequestType
 
     [<DreamFeature("GET:status", "Check the service's status")>]
     member this.GetStatus (context : DreamContext) (request : DreamMessage) =
-        DreamMessage.Ok(MimeType.JSON, "Running ...")
+        DreamMessage.Ok(MimeType.JSON, JsonValue.String("Running ...").ToString())
