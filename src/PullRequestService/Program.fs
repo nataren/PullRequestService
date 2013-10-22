@@ -128,10 +128,10 @@ module DataAccess =
             let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
             JsonValue.Parse(GITHUB_API.At("repos", owner, repo, "pulls").Get(auth).ToText()).AsArray()
 
-        member this.ProcessPullRequests prs action =
-            prs |> Seq.iter (fun pr -> action(new XUri(pr?url.AsString())))
+        member this.ProcessPullRequests pollAction prs =
+            prs |> Seq.iter (fun pr -> pollAction(new XUri(pr?url.AsString())))
 
-        member this.ProcessRepos (repos : string[]) =
+        member this.ProcessRepos (repos : string[]) pollAction =
             repos
             |> Array.map (fun repo->
                 try
@@ -141,7 +141,7 @@ module DataAccess =
                 | ex -> JsonValue.Parse("[]").AsArray())
             |> Array.concat
             |> Array.sortBy (fun pr -> pr?created_at.AsDateTime())
-            |> this.ProcessPullRequests
+            |> this.ProcessPullRequests pollAction
 
         member this.QueueMergePullRequest (prUri : XUri) action =
             let msg = String.Format("Will queue '{0}' for mergeability polling", prUri)
@@ -159,7 +159,6 @@ module DataAccess =
         member this.GetPullRequestDetails (prUri : XUri) =
             Plug.New(prUri).Get(Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |]))
             
-
 module Service =
 open Data
 open DataAccess
