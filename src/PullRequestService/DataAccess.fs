@@ -69,17 +69,18 @@ module DataAccess =
             |> Array.sortBy (fun pr -> pr?created_at.AsDateTime())
             |> this.ProcessPullRequests pollAction
 
-        member this.QueueMergePullRequest (prUri : XUri) action =
-            logger.DebugFormat("Will queue '{0}' for mergeability polling", prUri)
+        member this.PollPullRequest (prUri : XUri) action =
+            let msg = String.Format("Will queue '{0}' for status polling", prUri)
+            logger.DebugFormat(msg)
             action prUri
-            DreamMessage.Ok(MimeType.JSON, "Queue for mergeability polling"B)
+            DreamMessage.Ok(MimeType.JSON, JsonValue.String(msg).ToString())
 
-        member this.ProcessPullRequestType mergeQueueAction prEventType =
+        member this.ProcessPullRequestType pollAction prEventType =
             match prEventType with
             | Invalid i -> this.ClosePullRequest i
-            | UnknownMergeability uri -> this.QueueMergePullRequest uri mergeQueueAction
+            | UnknownMergeability uri -> this.PollPullRequest uri pollAction
             | AutoMergeable uri -> this.MergePullRequest uri
-            | Skip -> DreamMessage.Ok(MimeType.JSON, "Pull request needs to be handled by a human since is not targeting an open branch or the master branch"B)
+            | Skip -> DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since is not targeting an open branch or the master branch").ToString())
 
         member this.GetPullRequestDetails (prUri : XUri) =
             Plug.New(prUri).Get(Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |]))

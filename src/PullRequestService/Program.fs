@@ -21,22 +21,24 @@
  * limitations under the License.
  *)
 namespace Mindtouch
-
 open System
 open System.Collections.Generic
 open Autofac
+
 open MindTouch.Dream
 open MindTouch.Tasking
 open MindTouch.Xml
 open MindTouch.Collections;
+
 open FSharp.Data.Json
 open FSharp.Data.Json.Extensions
 open Microsoft.FSharp.Collections
+
 open log4net
-      
-module Service =
+
 open MindTouch.Data
 open MindTouch.DataAccess
+
 exception MissingConfig of string
 type Agent<'T> = MailboxProcessor<'T>
 
@@ -69,37 +71,6 @@ type PullRequestService() as self =
     let logger = LogManager.GetLogger typedefof<PullRequestService>
     let timerFactory = TaskTimerFactory.Create(self)
 
-    // Merge agent
-    let mergeAgent =
-        let cache = new ExpiringDictionary<XUri, int>(timerFactory, false)
-        cache.EntryExpired.Add <|
-            fun args ->
-                let prUri, retry = args.Entry.Key, args.Entry.Value
-                if retry < mergeRetries.Value then
-                    try
-                        let da = Github(owner.Value, token.Value)
-                        da.MergePullRequest prUri
-                        |> ignore
-                    with
-                        | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed ||
-                            e.Response.Status = DreamStatus.Unauthorized ||
-                            e.Response.Status = DreamStatus.Forbidden -> raise e
-                        | e ->
-                            cache.Set(prUri, retry + 1, mergeTTL)
-                            logger.Debug(String.Format("Something failed, will try to merge '{0}' again in '{1}'", prUri, mergeTTL), e)
-                            raise e
-                else
-                    logger.DebugFormat("The maximum number of merge retries ({1}) for '{0}' has been reached thus it will be ignored from now on", prUri, mergeRetries.Value)
-
-        Agent.Start <| fun inbox ->
-            let rec loop (cache : ExpiringDictionary<XUri, int>) = async {
-                let! msg = inbox.Receive()
-                cache.Set(msg, 0, mergeTTL)
-                logger.DebugFormat("Queued '{0}' for merge in '{1}'", msg, mergeTTL)
-                return! loop cache
-            }
-            loop(cache)
-
     // Polling agent
     let pollAgent =
         let cache = new ExpiringDictionary<XUri, int>(timerFactory, false)
@@ -111,20 +82,23 @@ type PullRequestService() as self =
                         let da = Github(owner.Value, token.Value)
                         JsonValue.Parse(da.GetPullRequestDetails(prUri).ToText())
                         |> DeterminePullRequestType
-                        |> da.ProcessPullRequestType (fun prUri -> mergeAgent.Post(prUri))
+                        |> da.ProcessPullRequestType (fun prUri -> failwith(String.Format("Status for '{0}' is still undetermined", prUri)))
                         |> ignore
-                    with e ->
-                        cache.Set(prUri, retry + 1, mergeabilityTTL)
-                        logger.Debug(String.Format("Something failed, will poll '{0}' meargeability status again in '{1}'", prUri, mergeabilityTTL), e)
-                        raise e
+                    with
+                        | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed || e.Response.Status = DreamStatus.Unauthorized || e.Response.Status = DreamStatus.Forbidden ->
+                            raise e
+                        | e ->
+                            cache.Set(prUri, retry + 1, mergeabilityTTL)
+                            logger.Debug(String.Format("Will poll '{0}' status again in '{1}'", prUri, mergeabilityTTL), e)
+                            raise e
                 else
-                    logger.DebugFormat("The maximum number of retries ({1}) for polling mergeability status for '{0}' has been reached thus ignored from now on", prUri, mergeabilityRetries.Value)
+                    logger.DebugFormat("The maximum number of retries ({1}) for polling status for '{0}' has been reached thus ignored from now on", prUri, mergeabilityRetries.Value)
         
         Agent.Start <| fun inbox ->
             let rec loop (cache : ExpiringDictionary<XUri, int>) = async {
                 let! msg = inbox.Receive()
                 cache.Set(msg, 0, mergeabilityTTL)
-                logger.DebugFormat("Queued '{0}' for mergeability check in '{1}'", msg, mergeabilityTTL)
+                logger.DebugFormat("Queued '{0}' for status check in '{1}'", msg, mergeabilityTTL)
                 return! loop cache
             }
             loop(cache)
@@ -194,7 +168,7 @@ type PullRequestService() as self =
         let da = Github(owner.Value, token.Value)
         JsonValue.Parse(requestText)
         |> DeterminePullRequestTypeFromEvent
-        |> da.ProcessPullRequestType (fun prUri -> mergeAgent.Post(prUri))
+        |> da.ProcessPullRequestType (fun prUri -> pollAgent.Post(prUri))
 
     [<DreamFeature("GET:status", "Check the service's status")>]
     member this.GetStatus (context : DreamContext) (request : DreamMessage) =
