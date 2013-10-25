@@ -77,7 +77,7 @@ type PullRequestService() as self =
                 let prUri, retry = args.Entry.Key, args.Entry.Value
                 if retry < mergeRetries.Value then
                     try
-                        let da = Github(owner.Value, token.Value, logger)
+                        let da = Github(owner.Value, token.Value)
                         da.MergePullRequest prUri
                         |> ignore
                     with
@@ -108,7 +108,7 @@ type PullRequestService() as self =
                 let prUri, retry = args.Entry.Key, args.Entry.Value
                 if retry < mergeabilityRetries.Value then
                     try
-                        let da = Github(owner.Value, token.Value, logger)
+                        let da = Github(owner.Value, token.Value)
                         JsonValue.Parse(da.GetPullRequestDetails(prUri).ToText())
                         |> DeterminePullRequestType
                         |> da.ProcessPullRequestType (fun prUri -> mergeAgent.Post(prUri))
@@ -178,7 +178,7 @@ type PullRequestService() as self =
         ValidateConfig "mergeability.ttl" mergeabilityTtl
         mergeTTL <- TimeSpan.FromMilliseconds(mergeTtl.Value)
         mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityTtl.Value)
-        let da = Github(owner.Value, token.Value, logger)
+        let da = Github(owner.Value, token.Value)
             
         // Use
         let allRepos = repos.Value.Split(',')
@@ -191,7 +191,7 @@ type PullRequestService() as self =
     member this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
         let requestText = request.ToText()
         logger.DebugFormat("Payload: ({0})", requestText)
-        let da = Github(owner.Value, token.Value, logger)
+        let da = Github(owner.Value, token.Value)
         JsonValue.Parse(requestText)
         |> DeterminePullRequestTypeFromEvent
         |> da.ProcessPullRequestType (fun prUri -> mergeAgent.Post(prUri))

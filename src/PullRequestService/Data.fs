@@ -21,7 +21,7 @@ module Data =
         pr?mergeable_state.AsString().EqualsInvariantIgnoreCase("clean")
 
     let OpenPullRequest (state : string) =
-        state.EqualsInvariantIgnoreCase("opened") || state.EqualsInvariantIgnoreCase("reopened")
+        state.EqualsInvariantIgnoreCase("open") || state.EqualsInvariantIgnoreCase("opened") || state.EqualsInvariantIgnoreCase("reopened")
 
     let InvalidPullRequest pr =
         pr?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")

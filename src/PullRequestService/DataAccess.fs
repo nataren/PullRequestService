@@ -11,20 +11,22 @@ open log4net
 
 module DataAccess =
     open Data
-    type Github(owner, token, logger : ILog) =
+    type Github(owner, token) =
         let owner = owner
         let token = token
-        let logger = logger
+        let logger = LogManager.GetLogger typedefof<Github>
         let GITHUB_API = Plug.New(new XUri("https://api.github.com"))
 
         let Json(payload : string, headers : seq<KeyValuePair<string, string>>) =
             new DreamMessage(DreamStatus.Ok, new DreamHeaders(headers), MimeType.JSON, payload)
 
         member this.ClosePullRequest (prUri : XUri) =
+            logger.DebugFormat("Will try to close '{0}'", prUri)
             Plug.New(prUri)
                 .Post(Json("""{ "state" : "closed"  }""", [| new KeyValuePair<_, _>("Authorization", "token " + token); new KeyValuePair<_, _>("X-HTTP-Method-Override", "PATCH") |]))
     
         member this.MergePullRequest (prUri : XUri) =
+            logger.DebugFormat("Will try to merge '{0}'", prUri)
             let mergePlug = Plug.New(prUri.At("merge"))
             mergePlug.Put(Json("{}", [| new KeyValuePair<_, _>("Authorization", "token " + token) |]))
 
@@ -68,8 +70,7 @@ module DataAccess =
             |> this.ProcessPullRequests pollAction
 
         member this.QueueMergePullRequest (prUri : XUri) action =
-            let msg = String.Format("Will queue '{0}' for mergeability polling", prUri)
-            logger.DebugFormat(msg)
+            logger.DebugFormat("Will queue '{0}' for mergeability polling", prUri)
             action prUri
             DreamMessage.Ok(MimeType.JSON, "Queue for mergeability polling"B)
 
