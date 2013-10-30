@@ -39,13 +39,10 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <OutputPath>..\redist</OutputPath>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <StartArguments>
-    </StartArguments>
-    <StartWorkingDirectory>
-    </StartWorkingDirectory>
-    <StartAction>Project</StartAction>
-    <StartProgram>
-    </StartProgram>
+    <StartArguments>config prod.config</StartArguments>
+    <StartWorkingDirectory>C:\Users\César López-Natarén\src\PullRequestService\src\redist\</StartWorkingDirectory>
+    <StartAction>Program</StartAction>
+    <StartProgram>C:\Users\César López-Natarén\src\PullRequestService\src\redist\mindtouch.host.exe</StartProgram>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <OutputPath>..\bin\</OutputPath>
@@ -59,6 +56,8 @@
   <Import Project="$(MSBuildExtensionsPath32)\FSharp\1.0\Microsoft.FSharp.Targets" Condition="(!Exists('$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets')) And (!Exists('$(MSBuildExtensionsPath32)\..\Microsoft F#\v4.0\Microsoft.FSharp.Targets')) And (Exists('$(MSBuildExtensionsPath32)\FSharp\1.0\Microsoft.FSharp.Targets'))" />
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="Data.fs" />
+    <Compile Include="DataAccess.fs" />
     <Compile Include="Program.fs" />
     <None Include="App.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
