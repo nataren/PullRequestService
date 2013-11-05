@@ -6,6 +6,9 @@ PullRequestService
 The `PullRequestService` listens to notifications from a Github's repository in regards to pull request
 creation and closes it if it is targeting the master branch.
 
+## License
+Open Source under the Apache License Version 2.0
+
 ## Prerequisites
 ### Binaries
 * Get them from [releases page] (https://github.com/nataren/PullRequestService/releases "PullRequestService binaries") 
