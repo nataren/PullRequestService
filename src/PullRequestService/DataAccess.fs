@@ -1,4 +1,4 @@
-﻿(*
+﻿﻿(*
  * MindTouch PullRequestService - a DreamService that awaits pull requests
  * notifications from Github and acts upon it
  *
@@ -38,28 +38,30 @@ module DataAccess =
         let token = token
         let logger = LogManager.GetLogger typedefof<Github>
         let GITHUB_API = Plug.New(new XUri("https://api.github.com"))
+        let AUTH_PAIR = new KeyValuePair<_, _>("Authorization", "token " + token)
 
         let Json(payload : string, headers : seq<KeyValuePair<string, string>>) =
             new DreamMessage(DreamStatus.Ok, new DreamHeaders(headers), MimeType.JSON, payload)
+        
+        let Auth = Json("", [| AUTH_PAIR |])
 
         member this.ClosePullRequest (prUri : XUri) =
             logger.DebugFormat("Will try to close '{0}'", prUri)
             Plug.New(prUri)
-                .Post(Json("""{ "state" : "closed"  }""", [| new KeyValuePair<_, _>("Authorization", "token " + token); new KeyValuePair<_, _>("X-HTTP-Method-Override", "PATCH") |]))
+                .Post(Json("""{ "state" : "closed"  }""", [| AUTH_PAIR; new KeyValuePair<_, _>("X-HTTP-Method-Override", "PATCH") |]))
     
         member this.MergePullRequest (prUri : XUri) =
             logger.DebugFormat("Will try to merge '{0}'", prUri)
             let mergePlug = Plug.New(prUri.At("merge"))
-            mergePlug.Put(Json("{}", [| new KeyValuePair<_, _>("Authorization", "token " + token) |]))
+            mergePlug.Put(Json("{}", [| AUTH_PAIR |]))
 
         member this.WebHookExist repo publicUri =
-            let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
-            let hooks = JsonValue.Parse(GITHUB_API.At("repos", owner, repo, "hooks").Get(auth).ToText()).AsArray()
+            let hooks = JsonValue.Parse(GITHUB_API.At("repos", owner, repo, "hooks").Get(Auth).ToText()).AsArray()
             let isPullRequestEvent (events : JsonValue[]) = Seq.exists (fun (event : JsonValue) -> event.AsString() = "pull_request") events
             hooks |> Seq.exists (fun (hook : JsonValue) -> isPullRequestEvent(hook?events.AsArray()) && hook?name.AsString() = "web" && hook?config?url.AsString() = publicUri)
         
         member this.CreateWebHook repo (publicUri : string) =
-            let createHook = Json(String.Format("""{{ "name" : "web", "events" : ["pull_request"], "config" : {{ "url" : "{0}", "content_type" : "json" }} }}""",  publicUri), [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
+            let createHook = Json(String.Format("""{{ "name" : "web", "events" : ["pull_request"], "config" : {{ "url" : "{0}", "content_type" : "json" }} }}""",  publicUri), [| AUTH_PAIR |])
             GITHUB_API.At("repos", owner, repo, "hooks").Post(createHook)
 
         member this.CreateWebHooks repos (publicUri : string) =
@@ -73,8 +75,7 @@ module DataAccess =
             
         member this.GetOpenPullRequests (repo : string) =
             logger.DebugFormat("Getting the open pull requests for repo '{0}'", repo)
-            let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
-            JsonValue.Parse(GITHUB_API.At("repos", owner, repo, "pulls").Get(auth).ToText()).AsArray()
+            JsonValue.Parse(GITHUB_API.At("repos", owner, repo, "pulls").Get(Auth).ToText()).AsArray()
 
         member this.ProcessPullRequests pollAction prs =
             prs |> Seq.iter (fun pr -> pollAction(new XUri(pr?url.AsString())))
@@ -105,5 +106,10 @@ module DataAccess =
             | Skip -> DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since is not targeting an open branch or the master branch").ToString())
 
         member this.GetPullRequestDetails (prUri : XUri) =
-            Plug.New(prUri).Get(Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |]))
+            Plug.New(prUri).Get(Auth)
+
+        member this.GetRepoBranches(repo) =
+            (GITHUB_API.At("repos", owner, repo, "branches").Get(Auth).ToText()
+            |> JsonValue.Parse).AsArray()
+
       
