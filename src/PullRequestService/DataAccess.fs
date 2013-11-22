@@ -109,7 +109,7 @@ module DataAccess =
             Plug.New(prUri).Get(Auth)
 
         member this.GetRepoBranches(repo) =
-            (GITHUB_API.At("repos", owner, repo, "branches").Get(Auth).ToText()
-            |> JsonValue.Parse).AsArray()
+            JsonValue.Parse(GITHUB_API.At("repos", owner, repo, "branches").Get(Auth).ToText()).AsArray()
+
 
       
