@@ -47,10 +47,10 @@ module Data =
 
     let InvalidPullRequest pr =
         pr?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
-    
+       
     let targetOpenBranch targetBranchDate =
-        (targetBranchDate - DateTime.UtcNow.Date).Days >= 6
-
+        (targetBranchDate - DateTime.Now) >= TimeSpan(6,2,0,0)
+    
     let getTargetBranchDate pr =
         let targetBranch = pr?``base``?ref.AsString()
         DateTime.ParseExact(targetBranch.Substring(targetBranch.Length - DATE_PATTERN.Length), DATE_PATTERN, null)
