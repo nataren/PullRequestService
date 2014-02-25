@@ -38,6 +38,7 @@ open log4net
 
 open MindTouch.Data
 open MindTouch.DataAccess
+open MindTouch
 
 exception MissingConfig of string
 type Agent<'T> = MailboxProcessor<'T>
@@ -54,6 +55,9 @@ type Agent<'T> = MailboxProcessor<'T>
 [<DreamServiceConfig("merge.ttl", "int", "The amount of time (in milliseconds) that we need to wait before we try to merge the pull request again")>]
 [<DreamServiceConfig("mergeability.retries", "int", "The number of times we should retry polling for the mergeability status")>]
 [<DreamServiceConfig("mergeability.ttl", "int", "The amount of time (in milliseconds) that we need to wait before we try to check for the mergeability status of the pull request")>]
+[<DreamServiceConfig("youtrack.hostname", "string", "The YouTrack hostname")>]
+[<DreamServiceConfig("youtrack.username", "string", "The YouTrack username")>]
+[<DreamServiceConfig("youtrack.password", "string", "The YouTrack password")>]
 type PullRequestService() as self =
     inherit DreamService()
 
@@ -61,6 +65,9 @@ type PullRequestService() as self =
     // Config keys values
     let mutable token = None
     let mutable owner = None
+    let mutable youtrackHostname = None
+    let mutable youtrackUsername = None
+    let mutable youtrackPassword = None
     let mutable publicUri = None
     let mutable mergeRetries = None
     let mutable mergeabilityRetries = None
@@ -140,6 +147,9 @@ type PullRequestService() as self =
         let mergeTtl = GetConfigValue config "merge.ttl" 0.
         mergeabilityRetries <- GetConfigValue config "mergeability.retries" 0
         let mergeabilityTtl = GetConfigValue config "mergeability.ttl" 0.
+        youtrackHostname <- config' "youtrack.hostname"
+        youtrackUsername <- config' "youtrack.username"
+        youtrackPassword <- config' "youtrack.password"
 
         // Validate
         ValidateConfig "github.token" token
@@ -150,14 +160,22 @@ type PullRequestService() as self =
         ValidateConfig "merge.ttl" mergeTtl
         ValidateConfig "mergeability.retries" mergeabilityRetries
         ValidateConfig "mergeability.ttl" mergeabilityTtl
+        ValidateConfig "youtrack.hostname" youtrackHostname
+        ValidateConfig "youtrack.username" youtrackUsername
+        ValidateConfig "youtrack.password" youtrackPassword
         mergeTTL <- TimeSpan.FromMilliseconds(mergeTtl.Value)
         mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityTtl.Value)
-        let da = Github(owner.Value, token.Value)
-            
+        let github = Github(owner.Value, token.Value)
+
+        // TESTING: Remove once done
+        let youtrack = YouTrack.t (youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
+        let youtrackResp = youtrack.GetIssue("OPS-1500")
+        Console.WriteLine(youtrackResp.ToText())
+
         // Use
         let allRepos = repos.Value.Split(',')
-        da.CreateWebHooks allRepos publicUri.Value
-        da.ProcessRepos allRepos (fun prUri -> pollAgent.Post(prUri))
+        github.CreateWebHooks allRepos publicUri.Value
+        github.ProcessRepos allRepos (fun prUri -> pollAgent.Post(prUri))
         result.Return()
         Seq.empty<IYield>.GetEnumerator()
 

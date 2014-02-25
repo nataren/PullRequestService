@@ -28,11 +28,14 @@ open MindTouch.Dream
 open FSharp.Data.Json
 open FSharp.Data.Json.Extensions
 
+open MindTouch.YouTrack
+
 module Data =
     type PullRequestType =
     | Invalid of XUri
     | AutoMergeable of XUri
     | UnknownMergeability of XUri
+    | NotBoundToYouTrackTicket of XUri
     | Skip
 
     let DATE_PATTERN = "yyyyMMdd"
@@ -61,8 +64,10 @@ module Data =
     let UnknownMergeabilityPullRequest pr =
         targetOpenBranch(getTargetBranchDate pr) && pr?mergeable_state.AsString().EqualsInvariantIgnoreCase("unknown")
 
-    let DeterminePullRequestType pr =
+    let DeterminePullRequestType pr youTrackValidator =
         let pullRequestUrl = pr?url.AsString()
+        if not <| youTrackValidator pr
+            NotBoundToYouTrackTicket (new XUri(pr?``_links``?comments?href.AsString()))
         if not <| OpenPullRequest(pr?state.AsString()) then
             Skip
         else if InvalidPullRequest pr then

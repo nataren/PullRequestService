@@ -42,6 +42,12 @@ module DataAccess =
         let Json(payload : string, headers : seq<KeyValuePair<string, string>>) =
             new DreamMessage(DreamStatus.Ok, new DreamHeaders(headers), MimeType.JSON, payload)
 
+        member this.CommentOnPullRequest (commentUri : XUri) (comment : String) =
+            logger.DebugFormat("Going to create a comment at '{0}'", commentUri)
+            let msg = Json(JsonValue.Object(["body", JsonValue.String(comment)] |> Map.ofSeq).AsString(), [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
+            (* let msg = Json(String.Format("""{{ "body" : "{0}"}}""", comment), [| new KeyValuePair<_, _>("Authorization", "token " + token) |]) *)
+            Plug.New(commentUri).Post(msg)
+
         member this.ClosePullRequest (prUri : XUri) =
             logger.DebugFormat("Will try to close '{0}'", prUri)
             Plug.New(prUri)
@@ -99,6 +105,7 @@ module DataAccess =
 
         member this.ProcessPullRequestType pollAction prEventType =
             match prEventType with
+            | NotBoundToYouTrackTicket uri -> this.CommentOnPullRequest uri "This pull request is not bound to a YouTrackTicket, human intervention required."
             | Invalid i -> this.ClosePullRequest i
             | UnknownMergeability uri -> this.PollPullRequest uri pollAction
             | AutoMergeable uri -> this.MergePullRequest uri
