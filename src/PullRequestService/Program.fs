@@ -39,7 +39,6 @@ open log4net
 open MindTouch.Data
 open MindTouch.DataAccess
 open MindTouch
-
 exception MissingConfig of string
 type Agent<'T> = MailboxProcessor<'T>
 
@@ -86,10 +85,11 @@ type PullRequestService() as self =
                 let prUri, retry = args.Entry.Key, args.Entry.Value
                 if retry < mergeabilityRetries.Value then
                     try
-                        let da = Github(owner.Value, token.Value)
-                        JsonValue.Parse(da.GetPullRequestDetails(prUri).ToText())
-                        |> DeterminePullRequestType
-                        |> da.ProcessPullRequestType (fun prUri -> failwith(String.Format("Status for '{0}' is still undetermined", prUri)))
+                        let github = Github(owner.Value, token.Value)
+                        let youtrack = YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
+                        JsonValue.Parse(github.GetPullRequestDetails(prUri).ToText())
+                        |> DeterminePullRequestType youtrack.IssuesValidator
+                        |> github.ProcessPullRequestType (fun prUri -> failwith(String.Format("Status for '{0}' is still undetermined", prUri)))
                         |> ignore
                     with
                         | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed || e.Response.Status = DreamStatus.Unauthorized || e.Response.Status = DreamStatus.Forbidden ->
@@ -183,10 +183,11 @@ type PullRequestService() as self =
     member this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
         let requestText = request.ToText()
         logger.DebugFormat("Payload: ({0})", requestText)
-        let da = Github(owner.Value, token.Value)
+        let github = Github(owner.Value, token.Value)
+        let youtrack = new YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
         JsonValue.Parse(requestText)
-        |> DeterminePullRequestTypeFromEvent
-        |> da.ProcessPullRequestType (fun prUri -> pollAgent.Post(prUri))
+        |> DeterminePullRequestTypeFromEvent youtrack.IssuesValidator
+        |> github.ProcessPullRequestType (fun prUri -> pollAgent.Post(prUri))
 
     [<DreamFeature("GET:status", "Check the service's status")>]
     member this.GetStatus (context : DreamContext) (request : DreamMessage) =

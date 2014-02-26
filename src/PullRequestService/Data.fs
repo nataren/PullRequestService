@@ -63,12 +63,15 @@ module Data =
 
     let UnknownMergeabilityPullRequest pr =
         targetOpenBranch(getTargetBranchDate pr) && pr?mergeable_state.AsString().EqualsInvariantIgnoreCase("unknown")
+    
+    let GetTicketNames (branchName : string) =
+        branchName.Split('_') |> Seq.filter (fun s -> s.Contains("-")) |> Seq.map (fun s -> s.ToUpper())
 
-    let DeterminePullRequestType pr youTrackValidator =
+    let DeterminePullRequestType youTrackValidator pr =
         let pullRequestUrl = pr?url.AsString()
-        if not <| youTrackValidator pr
+        if not <| youTrackValidator (GetTicketNames(pr?head?ref.AsString())) then
             NotBoundToYouTrackTicket (new XUri(pr?``_links``?comments?href.AsString()))
-        if not <| OpenPullRequest(pr?state.AsString()) then
+        else if not <| OpenPullRequest(pr?state.AsString()) then
             Skip
         else if InvalidPullRequest pr then
             Invalid (new XUri(pullRequestUrl))
@@ -79,7 +82,7 @@ module Data =
         else
             Skip
 
-    let DeterminePullRequestTypeFromEvent prEvent =
+    let DeterminePullRequestTypeFromEvent youtrackValidator prEvent =
         if not <| OpenPullRequest(prEvent?action.AsString()) then
             Skip
-        else DeterminePullRequestType <| prEvent?pull_request
+        else DeterminePullRequestType youtrackValidator <| prEvent?pull_request

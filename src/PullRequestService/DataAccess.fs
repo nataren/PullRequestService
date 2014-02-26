@@ -44,8 +44,8 @@ module DataAccess =
 
         member this.CommentOnPullRequest (commentUri : XUri) (comment : String) =
             logger.DebugFormat("Going to create a comment at '{0}'", commentUri)
-            let msg = Json(JsonValue.Object(["body", JsonValue.String(comment)] |> Map.ofSeq).AsString(), [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
-            (* let msg = Json(String.Format("""{{ "body" : "{0}"}}""", comment), [| new KeyValuePair<_, _>("Authorization", "token " + token) |]) *)
+            (* let msg = Json(JsonValue.Object(["body", JsonValue.String(comment)] |> Map.ofSeq).AsString(), [| new KeyValuePair<_, _>("Authorization", "token " + token) |]) *)
+            let msg = Json(String.Format("""{{ "body" : "{0}"}}""", comment), [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
             Plug.New(commentUri).Post(msg)
 
         member this.ClosePullRequest (prUri : XUri) =
