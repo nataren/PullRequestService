@@ -3,6 +3,7 @@
 open log4net
 open MindTouch.Dream
 open System.Collections.Generic
+open System
 
 module YouTrack =
     type t(hostname : string, username, password) =
@@ -29,3 +30,10 @@ module YouTrack =
 
         member this.IssueExists (issue : string) =
             api.At("rest", "issue", issue, "exists").WithHeader("Accept", MimeType.JSON.ToString()).Get().Status = DreamStatus.Ok
+
+        member this.VerifyIssue (issue : string) (release : string) (comment : string) =
+            api.At("rest", "issue", issue, "execute")
+                .With("command", String.Format("In Release: {0}&State: Verified", release))
+                .With("comment", comment)
+                .WithHeader("Accept", MimeType.JSON.ToString())
+                .Post()
