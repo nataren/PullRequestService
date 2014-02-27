@@ -105,11 +105,13 @@ module DataAccess =
 
         member this.ProcessPullRequestType pollAction prEventType =
             match prEventType with
-            | NotBoundToYouTrackTicket uri -> this.CommentOnPullRequest uri "This pull request is not bound to a YouTrackTicket, human intervention required."
-            | Invalid i -> this.ClosePullRequest i
-            | UnknownMergeability uri -> this.PollPullRequest uri pollAction
+            | Invalid uri -> this.CommentOnPullRequest uri "This pull request is invalid because its target is the master branch, it will be closed" |> ignore; this.ClosePullRequest uri |> ignore; DreamMessage.Ok() 
             | AutoMergeable uri -> this.MergePullRequest uri
-            | Skip -> DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since is not targeting an open branch or the master branch").ToString())
+            | UnknownMergeability uri -> this.PollPullRequest uri pollAction
+            | OpenedNotLinkedToYouTrackIssue uri -> this.CommentOnPullRequest uri "This just opened pull request is not bound to a YouTrack issue, it will be closed" |> ignore; this.ClosePullRequest uri
+            | ReopenedNotLinkedToYouTrackIssue uri -> this.CommentOnPullRequest uri "This just *reopened* pull request is not bound to a YouTrack issue, it will be ignored but human intervention is required" |> ignore; DreamMessage.Ok()
+            | Merged uri -> DreamMessage.Ok()
+            | Skip uri -> this.CommentOnPullRequest uri "This pull request is going to be ignored, human intervention required" |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since is not targeting an open branch or the master branch").ToString())
 
         member this.GetPullRequestDetails (prUri : XUri) =
             Plug.New(prUri).Get(Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |]))

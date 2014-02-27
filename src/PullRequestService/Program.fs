@@ -167,11 +167,6 @@ type PullRequestService() as self =
         mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityTtl.Value)
         let github = Github(owner.Value, token.Value)
 
-        // TESTING: Remove once done
-        let youtrack = YouTrack.t (youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
-        let youtrackResp = youtrack.GetIssue("OPS-1500")
-        Console.WriteLine(youtrackResp.ToText())
-
         // Use
         let allRepos = repos.Value.Split(',')
         github.CreateWebHooks allRepos publicUri.Value
