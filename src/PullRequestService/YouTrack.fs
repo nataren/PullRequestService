@@ -65,7 +65,7 @@ module YouTrack =
 
         member this.VerifyIssue (issue : string) (prUri : XUri) (release : string) (comment : string) (author : string) =
             let command = String.Format("In Release {0} State Verified{1}", release, match github2youtrack.TryFind(author.ToLowerInvariant()) with | Some username -> " Assignee " + username | None -> "")
-            let fullComment = String.Format("{0}\nPull Request: {1}", comment, prUri.ToString())
+            let fullComment = String.Format("{0}\nPull Request: {1}\nAuthor: {2}", comment, prUri.ToString(), author)
             logger.DebugFormat("command = '{0}'", command)
             logger.DebugFormat("fullComment = '{0}'", fullComment)
             api.At("rest", "issue", issue, "execute")
