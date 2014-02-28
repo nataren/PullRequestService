@@ -7,18 +7,35 @@ open System
 
 module YouTrack =
     type MergedPullRequestMetadata = {
-        Uri : XUri;
+        HtmlUri : XUri;
         LinkedYouTrackIssues : seq<string>;
         Author : String;
         Message : String;
         Release : DateTime
     }
+
+    (* github to youtrack usernames mapping *)
+    let github2youtrack = [
+        ("nataren", "cesarn");
+        ("modethirteen", "andyv");
+        ("bjorg", "SteveB");
+        ("Petee", "PeteE");
+        ("programzeta", "ryanc");
+        ("kazad", "kalida");
+        ("sdether", "arnec");
+        ("yurigorokhov", "yurig");
+        ("aaronmars", "aaronm");
+        ("theresam", "theresam");
+        ("trypton", "karena");
+        ("jedapostol", "jeda");
+        ("hurgleburgler", "dianaw")] |> Map.ofList
+
     type t(hostname : string, username, password) =
         let logger = LogManager.GetLogger typedefof<t>
         let api =  Plug.New(new XUri(hostname)).WithCredentials(username, password)
 
         member this.IssuesValidator (issues : seq<string>) =
-            logger.DebugFormat("IssuesValidator with '{0}'", issues)
+            logger.DebugFormat("IssuesValidator with '{0}'", String.Join(",", issues))
             not << Seq.isEmpty <| this.FilterOutNotExistentIssues issues
 
         member this.FilterOutNotExistentIssues (issues : seq<string>) =
@@ -39,12 +56,20 @@ module YouTrack =
             api.At("rest", "issue", issue, "exists").WithHeader("Accept", MimeType.JSON.ToString()).Get().Status = DreamStatus.Ok
 
         member this.ProcessMergedPullRequest (mergedPrMetadata : MergedPullRequestMetadata) =
-            ()
-            //let release = 
+            mergedPrMetadata.LinkedYouTrackIssues
+            |> Seq.iter (fun issue -> 
+                try
+                    this.VerifyIssue issue mergedPrMetadata.HtmlUri (mergedPrMetadata.Release.ToString("yyyyMMdd")) mergedPrMetadata.Message mergedPrMetadata.Author |> ignore
+                with
+                | ex -> logger.DebugExceptionMethodCall(ex, "Error happened processing issue '{0}', '{1}'", issue, ex.Message))
 
-        member this.VerifyIssue (issue : string) (release : string) (comment : string) =
+        member this.VerifyIssue (issue : string) (prUri : XUri) (release : string) (comment : string) (author : string) =
+            let command = String.Format("In Release {0} State Verified", release, match github2youtrack.TryFind(author.ToLowerInvariant()) with | Some username -> " Assignee " + username | None -> "")
+            let fullComment = String.Format("{0}\nAssignee: {1}\nPull Request: {2}", comment, author, prUri.ToString())
+            logger.DebugFormat("command = '{0}'", command)
+            logger.DebugFormat("fullComment = '{0}'", fullComment)
             api.At("rest", "issue", issue, "execute")
-                .With("command", String.Format("In Release: {0}&State: Verified", release))
-                .With("comment", comment)
+                .With("command", command)
+                .With("comment", fullComment)
                 .WithHeader("Accept", MimeType.JSON.ToString())
                 .Post()

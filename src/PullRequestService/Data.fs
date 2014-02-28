@@ -2,7 +2,7 @@
  * MindTouch PullRequestService - a DreamService that awaits pull requests
  * notifications from Github and acts upon it
  *
- * Copyright (C) 2006-2013 MindTouch, Inc.
+ * Copyright (C) 2006-2013 MindTouHtmlUri Inc.
  * www.mindtouch.com  oss@mindtouch.com
  *
  * For community documentation and downloads visit help.mindtouch.us;
@@ -45,31 +45,35 @@ module Data =
     let IsMergeable pr =
         let mergeable = pr?mergeable
         not(pr?merged.AsBoolean()) && mergeable <> JsonValue.Null && mergeable.AsBoolean() &&
-        pr?mergeable_state.AsString().EqualsInvariantIgnoreCase("clean")
+            pr?mergeable_state.AsString().EqualsInvariantIgnoreCase("clean")
+
+    let IsMergedPullRequestEvent evnt =
+        let merged = evnt?pull_request?merged
+        let action = evnt?action
+        action <> JsonValue.Null && action.AsString().EqualsInvariantIgnoreCase("closed") &&
+            merged <> JsonValue.Null && merged.AsBoolean()
 
     let IsMergedPullRequest pr =
         let merged = pr?merged
-        // let action = pr?action
-        // action <> JsonValue.Null && action.AsString().EqualsInvariantIgnoreCase("closed") &&
         merged <> JsonValue.Null && merged.AsBoolean()
 
     let matches (str : string) strs =
         Seq.exists (fun s -> str.EqualsInvariantIgnoreCase(s)) strs
          
     let IsOpenPullRequestEvent (evnt : JsonValue) =
-        let opened = [| "open"; "opened" |]
         let action = evnt?action
         let state = evnt?pull_request?state
-        action <> JsonValue.Null && matches (action.AsString()) opened &&
-            state <> JsonValue.Null && matches (state.AsString()) opened
+        action <> JsonValue.Null && action.AsString().EqualsInvariantIgnoreCase("opened") &&
+            state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("open")
        
     let IsOpenPullRequest (state : JsonValue) =
         state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("open")
 
     let IsReopenedPullRequestEvent (evnt : JsonValue) =
-        let reopened = [| "reopened" |]
         let action = evnt?action
-        action <> JsonValue.Null && matches (action.AsString()) reopened
+        let state = evnt?pull_request?state
+        action <> JsonValue.Null && action.AsString().EqualsInvariantIgnoreCase("reopened") &&
+            state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("open")
 
     let IsReopenedPullRequest (state : JsonValue) =
         state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("reopen")
@@ -96,27 +100,26 @@ module Data =
     let GetTicketNames (branchName : string) =
         branchName.Split('_') |> Seq.filter (fun s -> s.Contains("-")) |> Seq.map (fun s -> s.ToUpper())
 
-    let DeterminePullRequestType youTrackValidator youtrackIssuesFilter pr =
+    let DeterminePullRequestType youtrackValidator youtrackIssuesFilter pr =
         let pullRequestUri = pr?url.AsString()
         let prUri = new XUri(pullRequestUri)
         let branchName = pr?head?ref.AsString()
         let state = pr?state
         let commentsUri = new XUri(pr?``_links``?comments?href.AsString())
-        let notValidInYouTrack = fun() -> not << youTrackValidator << GetTicketNames <| branchName
+        let notValidInYouTrack = fun() -> not << youtrackValidator << GetTicketNames <| branchName
 
         if IsOpenPullRequest state && notValidInYouTrack() then
             OpenedNotLinkedToYouTrackIssue (prUri, commentsUri)
+
         (* FIXME: This is broken, not enough information in the pull request payload alone *)
         else if IsReopenedPullRequest state && notValidInYouTrack() then
             ReopenedNotLinkedToYouTrackIssue commentsUri
         else if IsMergedPullRequest pr then Merged {
-            Uri = prUri;
+            HtmlUri = new XUri(pr?html_url.AsString())
             LinkedYouTrackIssues = branchName |> GetTicketNames |> youtrackIssuesFilter
             Author = (pr?user?login.AsString());
             Message = (pr?body.AsString());
             Release = getTargetBranchDate pr }
-        else if not <| IsOpenPullRequest state || IsReopenedPullRequest state then
-            Skip commentsUri
         else if IsInvalidPullRequest pr then
             Invalid (prUri, commentsUri)
         else if IsUnknownMergeabilityPullRequest pr then
@@ -128,7 +131,14 @@ module Data =
 
     let DeterminePullRequestTypeFromEvent youtrackValidator youtrackIssuesFilter prEvent =
         let pr = prEvent?pull_request
-        let prUri = new XUri(pr?url.AsString())
+        let branchName = pr?head?ref.AsString()
+        let notValidInYouTrack = fun() -> not << youtrackValidator << GetTicketNames <| branchName
+        let commentsUri = new XUri(pr?``_links``?comments?href.AsString())
+        if IsReopenedPullRequestEvent prEvent && notValidInYouTrack() then
+            ReopenedNotLinkedToYouTrackIssue commentsUri
+        else
+            DeterminePullRequestType youtrackValidator youtrackIssuesFilter pr
 
-        (* FIXME: This is broken *)
-        DeterminePullRequestType youtrackValidator youtrackIssuesFilter pr
+
+
+

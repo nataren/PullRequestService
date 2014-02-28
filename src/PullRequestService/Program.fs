@@ -180,7 +180,6 @@ type PullRequestService() as self =
         logger.DebugFormat("Payload: ({0})", githubEvent)
         let github = Github(owner.Value, token.Value)
         let youtrack = new YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
-
         JsonValue.Parse(githubEvent)
         |> DeterminePullRequestTypeFromEvent youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
         |> github.ProcessPullRequestType (fun prUri -> pollAgent.Post(prUri)) youtrack.ProcessMergedPullRequest
