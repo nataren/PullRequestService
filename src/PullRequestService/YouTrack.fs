@@ -6,6 +6,13 @@ open System.Collections.Generic
 open System
 
 module YouTrack =
+    type MergedPullRequestMetadata = {
+        Uri : XUri;
+        LinkedYouTrackIssues : seq<string>;
+        Author : String;
+        Message : String;
+        Release : DateTime
+    }
     type t(hostname : string, username, password) =
         let logger = LogManager.GetLogger typedefof<t>
         let api =  Plug.New(new XUri(hostname)).WithCredentials(username, password)
@@ -30,6 +37,10 @@ module YouTrack =
 
         member this.IssueExists (issue : string) =
             api.At("rest", "issue", issue, "exists").WithHeader("Accept", MimeType.JSON.ToString()).Get().Status = DreamStatus.Ok
+
+        member this.ProcessMergedPullRequest (mergedPrMetadata : MergedPullRequestMetadata) =
+            ()
+            //let release = 
 
         member this.VerifyIssue (issue : string) (release : string) (comment : string) =
             api.At("rest", "issue", issue, "execute")

@@ -88,8 +88,8 @@ type PullRequestService() as self =
                         let github = Github(owner.Value, token.Value)
                         let youtrack = YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
                         JsonValue.Parse(github.GetPullRequestDetails(prUri).ToText())
-                        |> DeterminePullRequestType youtrack.IssuesValidator
-                        |> github.ProcessPullRequestType (fun prUri -> failwith(String.Format("Status for '{0}' is still undetermined", prUri)))
+                        |> DeterminePullRequestType youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
+                        |> github.ProcessPullRequestType (fun prUri -> failwith(String.Format("Status for '{0}' is still undetermined", prUri))) youtrack.ProcessMergedPullRequest
                         |> ignore
                     with
                         | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed || e.Response.Status = DreamStatus.Unauthorized || e.Response.Status = DreamStatus.Forbidden ->
@@ -176,13 +176,14 @@ type PullRequestService() as self =
 
     [<DreamFeature("POST:notify", "Receive a pull request notification")>]
     member this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
-        let requestText = request.ToText()
-        logger.DebugFormat("Payload: ({0})", requestText)
+        let githubEvent = request.ToText()
+        logger.DebugFormat("Payload: ({0})", githubEvent)
         let github = Github(owner.Value, token.Value)
         let youtrack = new YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
-        JsonValue.Parse(requestText)
-        |> DeterminePullRequestTypeFromEvent youtrack.IssuesValidator
-        |> github.ProcessPullRequestType (fun prUri -> pollAgent.Post(prUri))
+
+        JsonValue.Parse(githubEvent)
+        |> DeterminePullRequestTypeFromEvent youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
+        |> github.ProcessPullRequestType (fun prUri -> pollAgent.Post(prUri)) youtrack.ProcessMergedPullRequest
 
     [<DreamFeature("GET:status", "Check the service's status")>]
     member this.GetStatus (context : DreamContext) (request : DreamMessage) =

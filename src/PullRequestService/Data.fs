@@ -32,12 +32,12 @@ open MindTouch.YouTrack
 
 module Data =
     type PullRequestType =
-    | Invalid of XUri
+    | Invalid of XUri * XUri
     | AutoMergeable of XUri
     | UnknownMergeability of XUri
-    | OpenedNotLinkedToYouTrackIssue of XUri
+    | OpenedNotLinkedToYouTrackIssue of XUri * XUri
     | ReopenedNotLinkedToYouTrackIssue of XUri
-    | Merged of XUri
+    | Merged of MergedPullRequestMetadata
     | Skip of XUri
 
     let DATE_PATTERN = "yyyyMMdd"
@@ -49,17 +49,33 @@ module Data =
 
     let IsMergedPullRequest pr =
         let merged = pr?merged
-        let action = pr?action
-        action <> JsonValue.Null && action.AsString().EqualsInvariantIgnoreCase("closed") && merged <> JsonValue.Null && merged.AsBoolean()
+        // let action = pr?action
+        // action <> JsonValue.Null && action.AsString().EqualsInvariantIgnoreCase("closed") &&
+        merged <> JsonValue.Null && merged.AsBoolean()
 
-    let IsOpenPullRequest (state : string) =
-        state.EqualsInvariantIgnoreCase("open") || state.EqualsInvariantIgnoreCase("opened")
+    let matches (str : string) strs =
+        Seq.exists (fun s -> str.EqualsInvariantIgnoreCase(s)) strs
+         
+    let IsOpenPullRequestEvent (evnt : JsonValue) =
+        let opened = [| "open"; "opened" |]
+        let action = evnt?action
+        let state = evnt?pull_request?state
+        action <> JsonValue.Null && matches (action.AsString()) opened &&
+            state <> JsonValue.Null && matches (state.AsString()) opened
+       
+    let IsOpenPullRequest (state : JsonValue) =
+        state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("open")
 
-    let IsReopenedPullRequest (state : string) = 
-        state.EqualsInvariantIgnoreCase("reopened")
+    let IsReopenedPullRequestEvent (evnt : JsonValue) =
+        let reopened = [| "reopened" |]
+        let action = evnt?action
+        action <> JsonValue.Null && matches (action.AsString()) reopened
+
+    let IsReopenedPullRequest (state : JsonValue) =
+        state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("reopen")
 
     let IsClosedPullRequest (state : string) =
-        state.EqualsInvariantIgnoreCase("closed") || state.EqualsInvariantIgnoreCase("close")
+        matches state [| "closed"; "close" |]
 
     let IsInvalidPullRequest pr =
         pr?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
@@ -80,24 +96,29 @@ module Data =
     let GetTicketNames (branchName : string) =
         branchName.Split('_') |> Seq.filter (fun s -> s.Contains("-")) |> Seq.map (fun s -> s.ToUpper())
 
-    let DeterminePullRequestType youTrackValidator pr =
+    let DeterminePullRequestType youTrackValidator youtrackIssuesFilter pr =
         let pullRequestUri = pr?url.AsString()
         let prUri = new XUri(pullRequestUri)
         let branchName = pr?head?ref.AsString()
-        let state = pr?state.AsString()
+        let state = pr?state
         let commentsUri = new XUri(pr?``_links``?comments?href.AsString())
         let notValidInYouTrack = fun() -> not << youTrackValidator << GetTicketNames <| branchName
 
         if IsOpenPullRequest state && notValidInYouTrack() then
-            OpenedNotLinkedToYouTrackIssue commentsUri
+            OpenedNotLinkedToYouTrackIssue (prUri, commentsUri)
+        (* FIXME: This is broken, not enough information in the pull request payload alone *)
         else if IsReopenedPullRequest state && notValidInYouTrack() then
             ReopenedNotLinkedToYouTrackIssue commentsUri
-        else if IsMergedPullRequest pr then
-            Merged prUri
+        else if IsMergedPullRequest pr then Merged {
+            Uri = prUri;
+            LinkedYouTrackIssues = branchName |> GetTicketNames |> youtrackIssuesFilter
+            Author = (pr?user?login.AsString());
+            Message = (pr?body.AsString());
+            Release = getTargetBranchDate pr }
         else if not <| IsOpenPullRequest state || IsReopenedPullRequest state then
             Skip commentsUri
         else if IsInvalidPullRequest pr then
-            Invalid prUri
+            Invalid (prUri, commentsUri)
         else if IsUnknownMergeabilityPullRequest pr then
             UnknownMergeability prUri
         else if IsAutoMergeablePullRequest pr then
@@ -105,9 +126,9 @@ module Data =
         else
             Skip commentsUri
 
-    let DeterminePullRequestTypeFromEvent youtrackValidator prEvent =
+    let DeterminePullRequestTypeFromEvent youtrackValidator youtrackIssuesFilter prEvent =
         let pr = prEvent?pull_request
         let prUri = new XUri(pr?url.AsString())
-        if not <| IsOpenPullRequest(prEvent?action.AsString()) then
-            Skip prUri
-        else DeterminePullRequestType youtrackValidator pr
+
+        (* FIXME: This is broken *)
+        DeterminePullRequestType youtrackValidator youtrackIssuesFilter pr

@@ -44,7 +44,6 @@ module DataAccess =
 
         member this.CommentOnPullRequest (commentUri : XUri) (comment : String) =
             logger.DebugFormat("Going to create a comment at '{0}'", commentUri)
-            (* let msg = Json(JsonValue.Object(["body", JsonValue.String(comment)] |> Map.ofSeq).AsString(), [| new KeyValuePair<_, _>("Authorization", "token " + token) |]) *)
             let msg = Json(String.Format("""{{ "body" : "{0}"}}""", comment), [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
             Plug.New(commentUri).Post(msg)
 
@@ -103,14 +102,14 @@ module DataAccess =
             action prUri
             DreamMessage.Ok(MimeType.JSON, JsonValue.String(msg).ToString())
 
-        member this.ProcessPullRequestType pollAction prEventType =
+        member this.ProcessPullRequestType pollAction mergedPrHandler prEventType =
             match prEventType with
-            | Invalid uri -> this.CommentOnPullRequest uri "This pull request is invalid because its target is the master branch, it will be closed" |> ignore; this.ClosePullRequest uri |> ignore; DreamMessage.Ok() 
+            | Invalid (prUri, commentsUri) -> this.CommentOnPullRequest commentsUri "This pull request is invalid because its target is the master branch, it will be closed" |> ignore; this.ClosePullRequest prUri |> ignore; DreamMessage.Ok() 
             | AutoMergeable uri -> this.MergePullRequest uri
             | UnknownMergeability uri -> this.PollPullRequest uri pollAction
-            | OpenedNotLinkedToYouTrackIssue uri -> this.CommentOnPullRequest uri "This just opened pull request is not bound to a YouTrack issue, it will be closed" |> ignore; this.ClosePullRequest uri
+            | OpenedNotLinkedToYouTrackIssue (prUri, commentsUri) -> this.CommentOnPullRequest commentsUri "This just opened pull request is not bound to a YouTrack issue, it will be closed" |> ignore; this.ClosePullRequest prUri
             | ReopenedNotLinkedToYouTrackIssue uri -> this.CommentOnPullRequest uri "This just *reopened* pull request is not bound to a YouTrack issue, it will be ignored but human intervention is required" |> ignore; DreamMessage.Ok()
-            | Merged uri -> DreamMessage.Ok()
+            | Merged mergedPrMetadata -> mergedPrHandler mergedPrMetadata |> ignore; DreamMessage.Ok()
             | Skip uri -> this.CommentOnPullRequest uri "This pull request is going to be ignored, human intervention required" |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since is not targeting an open branch or the master branch").ToString())
 
         member this.GetPullRequestDetails (prUri : XUri) =
