@@ -100,12 +100,15 @@ module Data =
     let GetTicketNames (branchName : string) =
         branchName.Split('_') |> Seq.filter (fun s -> s.Contains("-")) |> Seq.map (fun s -> s.ToUpper())
 
+    let GetCommentsUrl (pr : JsonValue) =
+        new XUri(pr?comments_url.AsString())
+
     let DeterminePullRequestType youtrackValidator youtrackIssuesFilter pr =
         let pullRequestUri = pr?url.AsString()
         let prUri = new XUri(pullRequestUri)
         let branchName = pr?head?ref.AsString()
         let state = pr?state
-        let commentsUri = new XUri(pr?``_links``?comments?href.AsString())
+        let commentsUri = GetCommentsUrl pr
         let notValidInYouTrack = fun() -> not << youtrackValidator << GetTicketNames <| branchName
 
         if IsOpenPullRequest state && notValidInYouTrack() then
@@ -133,7 +136,7 @@ module Data =
         let pr = prEvent?pull_request
         let branchName = pr?head?ref.AsString()
         let notValidInYouTrack = fun() -> not << youtrackValidator << GetTicketNames <| branchName
-        let commentsUri = new XUri(pr?``_links``?comments?href.AsString())
+        let commentsUri = GetCommentsUrl pr
         if IsReopenedPullRequestEvent prEvent && notValidInYouTrack() then
             ReopenedNotLinkedToYouTrackIssue commentsUri
         else
