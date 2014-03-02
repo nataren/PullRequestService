@@ -30,6 +30,8 @@ open FSharp.Data.Json.Extensions
 
 open MindTouch.YouTrack
 
+ open log4net
+
 module Data =
     type PullRequestType =
     | Invalid of XUri * XUri
@@ -41,6 +43,7 @@ module Data =
     | Skip of XUri
 
     let DATE_PATTERN = "yyyyMMdd"
+    let logger = LogManager.GetLogger typedefof<PullRequestType>
 
     let IsMergeable pr =
         let mergeable = pr?mergeable
@@ -67,17 +70,16 @@ module Data =
             state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("open")
        
     let IsOpenPullRequest (state : JsonValue) =
-        state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("open")
+        let isOpen = state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("open")
+        logger.DebugFormat("isOpen: {0}", isOpen)
+        isOpen
 
     let IsReopenedPullRequestEvent (evnt : JsonValue) =
         let action = evnt?action
         let state = evnt?pull_request?state
         action <> JsonValue.Null && action.AsString().EqualsInvariantIgnoreCase("reopened") &&
             state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("open")
-
-    let IsReopenedPullRequest (state : JsonValue) =
-        state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("reopen")
-
+    
     let IsClosedPullRequest (state : string) =
         matches state [| "closed"; "close" |]
 
@@ -103,20 +105,20 @@ module Data =
     let GetCommentsUrl (pr : JsonValue) =
         new XUri(pr?comments_url.AsString())
 
-    let DeterminePullRequestType youtrackValidator youtrackIssuesFilter pr =
+    let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter pr =
         let pullRequestUri = pr?url.AsString()
         let prUri = new XUri(pullRequestUri)
         let branchName = pr?head?ref.AsString()
         let state = pr?state
         let commentsUri = GetCommentsUrl pr
         let notValidInYouTrack = fun() -> not << youtrackValidator << GetTicketNames <| branchName
+        logger.DebugFormat("PR: {0}, target: {1}, state: {2}", prUri.ToString(), branchName, state)
 
-        if IsOpenPullRequest state && notValidInYouTrack() then
-            OpenedNotLinkedToYouTrackIssue (prUri, commentsUri)
-
-        (* FIXME: This is broken, not enough information in the pull request payload alone *)
-        else if IsReopenedPullRequest state && notValidInYouTrack() then
+        // Clasify the kind of pull request we are getting
+        if IsOpenPullRequest state && reopenedPullRequest pr && notValidInYouTrack() then
             ReopenedNotLinkedToYouTrackIssue commentsUri
+        else if IsOpenPullRequest state && notValidInYouTrack() then
+            OpenedNotLinkedToYouTrackIssue (prUri, commentsUri)
         else if IsMergedPullRequest pr then Merged {
             HtmlUri = new XUri(pr?html_url.AsString())
             LinkedYouTrackIssues = branchName |> GetTicketNames |> youtrackIssuesFilter
@@ -132,7 +134,7 @@ module Data =
         else
             Skip commentsUri
 
-    let DeterminePullRequestTypeFromEvent youtrackValidator youtrackIssuesFilter prEvent =
+    let DeterminePullRequestTypeFromEvent reopenedPullRequest youtrackValidator youtrackIssuesFilter prEvent =
         let pr = prEvent?pull_request
         let branchName = pr?head?ref.AsString()
         let notValidInYouTrack = fun() -> not << youtrackValidator << GetTicketNames <| branchName
@@ -140,7 +142,7 @@ module Data =
         if IsReopenedPullRequestEvent prEvent && notValidInYouTrack() then
             ReopenedNotLinkedToYouTrackIssue commentsUri
         else
-            DeterminePullRequestType youtrackValidator youtrackIssuesFilter pr
+            DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter pr
 
 
 

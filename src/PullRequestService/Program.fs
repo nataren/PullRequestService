@@ -88,7 +88,7 @@ type PullRequestService() as self =
                         let github = Github(owner.Value, token.Value)
                         let youtrack = YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
                         JsonValue.Parse(github.GetPullRequestDetails(prUri).ToText())
-                        |> DeterminePullRequestType youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
+                        |> DeterminePullRequestType github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
                         |> github.ProcessPullRequestType (fun prUri -> failwith(String.Format("Status for '{0}' is still undetermined", prUri))) youtrack.ProcessMergedPullRequest
                         |> ignore
                     with
@@ -181,7 +181,7 @@ type PullRequestService() as self =
         let github = Github(owner.Value, token.Value)
         let youtrack = new YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
         JsonValue.Parse(githubEvent)
-        |> DeterminePullRequestTypeFromEvent youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
+        |> DeterminePullRequestTypeFromEvent github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
         |> github.ProcessPullRequestType (fun prUri -> pollAgent.Post(prUri)) youtrack.ProcessMergedPullRequest
 
     [<DreamFeature("GET:status", "Check the service's status")>]

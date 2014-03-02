@@ -113,5 +113,32 @@ module DataAccess =
             | Skip uri -> this.CommentOnPullRequest uri "This pull request is going to be ignored, human intervention required" |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since is not targeting an open branch or the master branch").ToString())
 
         member this.GetPullRequestDetails (prUri : XUri) =
+            logger.DebugFormat("Will fetch the details of pull request '{0}'", prUri.ToString())
             Plug.New(prUri).Get(Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |]))
       
+        member this.GetIssueDetails (issueUri : XUri) =
+            logger.DebugFormat("Will fetch the details of the issue '{0}'", issueUri.ToString())
+            JsonValue.Parse(Plug.New(issueUri).Get(Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |])).ToText())
+
+        member this.GetIssueEvents (issue : JsonValue) =
+            let issueEventsUri = issue?events_url.AsString()
+            logger.DebugFormat("Will fetch the issue's events of '{0}'", issueEventsUri)
+            JsonValue.Parse(Plug.New(issueEventsUri).Get(Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |])).ToText()).AsArray()
+
+        member this.IsReopenedPullRequest (pr : JsonValue) =
+            let issueUri = new XUri(pr?issue_url.AsString())
+            let issueDetails = this.GetIssueDetails(issueUri)
+            let events = this.GetIssueEvents(issueDetails)
+            if events.None() then
+                false
+            else
+                let lastEvent = events |> Seq.last
+                logger.DebugFormat("The last event was '{0}'", lastEvent.ToString())
+                let isReopened = "reopened".EqualsInvariantIgnoreCase (lastEvent?event.AsString())
+                logger.DebugFormat("Is '{0}' reopened? {1}", issueUri.ToString(), isReopened)
+                isReopened
+
+
+
+
+
