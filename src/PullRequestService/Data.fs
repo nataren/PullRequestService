@@ -2,7 +2,7 @@
  * MindTouch PullRequestService - a DreamService that awaits pull requests
  * notifications from Github and acts upon it
  *
- * Copyright (C) 2006-2013 MindTouHtmlUri Inc.
+ * Copyright (C) 2006-2013 MindTouch, Inc.
  * www.mindtouch.com  oss@mindtouch.com
  *
  * For community documentation and downloads visit help.mindtouch.us;
@@ -80,9 +80,6 @@ module Data =
         action <> JsonValue.Null && action.AsString().EqualsInvariantIgnoreCase("reopened") &&
             state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("open")
     
-    let IsClosedPullRequest (state : string) =
-        matches state [| "closed"; "close" |]
-
     let IsInvalidPullRequest pr =
         pr?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
        
