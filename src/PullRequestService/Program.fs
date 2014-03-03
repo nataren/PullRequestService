@@ -35,10 +35,7 @@ open FSharp.Data.Json.Extensions
 open Microsoft.FSharp.Collections
 
 open log4net
-
 open MindTouch.Data
-open MindTouch.DataAccess
-open MindTouch
 exception MissingConfig of string
 type Agent<'T> = MailboxProcessor<'T>
 
@@ -85,10 +82,10 @@ type PullRequestService() as self =
                 let prUri, retry = args.Entry.Key, args.Entry.Value
                 if retry < mergeabilityRetries.Value then
                     try
-                        let github = Github(owner.Value, token.Value)
-                        let youtrack = YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
+                        let github = MindTouch.Github.t(owner.Value, token.Value)
+                        let youtrack = MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
                         JsonValue.Parse(github.GetPullRequestDetails(prUri).ToText())
-                        |> DeterminePullRequestType github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
+                        |> MindTouch.PullRequest.DeterminePullRequestType github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
                         |> github.ProcessPullRequestType (fun prUri -> failwith(String.Format("Status for '{0}' is still undetermined", prUri))) youtrack.ProcessMergedPullRequest
                         |> ignore
                     with
@@ -165,7 +162,7 @@ type PullRequestService() as self =
         ValidateConfig "youtrack.password" youtrackPassword
         mergeTTL <- TimeSpan.FromMilliseconds(mergeTtl.Value)
         mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityTtl.Value)
-        let github = Github(owner.Value, token.Value)
+        let github = MindTouch.Github.t(owner.Value, token.Value)
 
         // Use
         let allRepos = repos.Value.Split(',')
@@ -178,10 +175,10 @@ type PullRequestService() as self =
     member this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
         let githubEvent = request.ToText()
         logger.DebugFormat("Payload: ({0})", githubEvent)
-        let github = Github(owner.Value, token.Value)
-        let youtrack = new YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
+        let github = MindTouch.Github.t(owner.Value, token.Value)
+        let youtrack = new MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
         JsonValue.Parse(githubEvent)
-        |> DeterminePullRequestTypeFromEvent github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
+        |> MindTouch.PullRequest.DeterminePullRequestTypeFromEvent github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
         |> github.ProcessPullRequestType (fun prUri -> pollAgent.Post(prUri)) youtrack.ProcessMergedPullRequest
 
     [<DreamFeature("GET:status", "Check the service's status")>]
