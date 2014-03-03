@@ -76,7 +76,7 @@ type t(hostname : string, username, password, github2youtrackMapping : Map<strin
         api.At("rest", "issue", issue, "execute")
             .With("command", command)
             .With("comment", fullComment)
-            .With("disableNotifications", true)
+            .With("disableNotifications", false)
             .WithHeader("Accept", MimeType.JSON.ToString())
             .Post()
 
