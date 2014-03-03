@@ -109,7 +109,9 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
     logger.DebugFormat("PR: {0}, target: {1}, state: {2}", prUri.ToString(), branchName, state)
 
     // Clasify the kind of pull request we are getting
-    if IsOpenPullRequest state && reopenedPullRequest pr && notValidInYouTrack() then
+    if IsInvalidPullRequest pr then
+        Invalid (prUri, commentsUri)
+    else if IsOpenPullRequest state && reopenedPullRequest pr && notValidInYouTrack() then
         ReopenedNotLinkedToYouTrackIssue commentsUri
     else if IsOpenPullRequest state && notValidInYouTrack() then
         OpenedNotLinkedToYouTrackIssue (prUri, commentsUri)
@@ -119,8 +121,6 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
         Author = (pr?user?login.AsString());
         Message = (pr?body.AsString());
         Release = getTargetBranchDate pr }
-    else if IsInvalidPullRequest pr then
-        Invalid (prUri, commentsUri)
     else if IsUnknownMergeabilityPullRequest pr then
         UnknownMergeability prUri
     else if IsAutoMergeablePullRequest pr then

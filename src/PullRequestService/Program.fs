@@ -51,6 +51,7 @@ type Agent<'T> = MailboxProcessor<'T>
 [<DreamServiceConfig("merge.ttl", "int", "The amount of time (in milliseconds) that we need to wait before we try to merge the pull request again")>]
 [<DreamServiceConfig("mergeability.retries", "int", "The number of times we should retry polling for the mergeability status")>]
 [<DreamServiceConfig("mergeability.ttl", "int", "The amount of time (in milliseconds) that we need to wait before we try to check for the mergeability status of the pull request")>]
+[<DreamServiceConfig("github2youtrack", "string", "A command separated list of colon separated github and youtrack usernames. For example githubusername1:youtrackUsername1, githubUsername2:youtrackUsername2")>]
 [<DreamServiceConfig("youtrack.hostname", "string", "The YouTrack hostname")>]
 [<DreamServiceConfig("youtrack.username", "string", "The YouTrack username")>]
 [<DreamServiceConfig("youtrack.password", "string", "The YouTrack password")>]
@@ -61,6 +62,7 @@ type PullRequestService() as self =
     // Config keys values
     let mutable token = None
     let mutable owner = None
+    let mutable github2youtrack = Map.empty<string, string>
     let mutable youtrackHostname = None
     let mutable youtrackUsername = None
     let mutable youtrackPassword = None
@@ -83,7 +85,7 @@ type PullRequestService() as self =
                 if retry < mergeabilityRetries.Value then
                     try
                         let github = MindTouch.Github.t(owner.Value, token.Value)
-                        let youtrack = MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
+                        let youtrack = MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value, github2youtrack)
                         JsonValue.Parse(github.GetPullRequestDetails(prUri).ToText())
                         |> MindTouch.PullRequest.DeterminePullRequestType github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
                         |> github.ProcessPullRequestType (fun prUri -> failwith(String.Format("Status for '{0}' is still undetermined", prUri))) youtrack.ProcessMergedPullRequest
@@ -147,6 +149,7 @@ type PullRequestService() as self =
         youtrackHostname <- config' "youtrack.hostname"
         youtrackUsername <- config' "youtrack.username"
         youtrackPassword <- config' "youtrack.password"
+        let github2youtrackMappingsStr = config' "github2youtrack"
 
         // Validate
         ValidateConfig "github.token" token
@@ -157,6 +160,7 @@ type PullRequestService() as self =
         ValidateConfig "merge.ttl" mergeTtl
         ValidateConfig "mergeability.retries" mergeabilityRetries
         ValidateConfig "mergeability.ttl" mergeabilityTtl
+        ValidateConfig "github2youtrack" github2youtrackMappingsStr
         ValidateConfig "youtrack.hostname" youtrackHostname
         ValidateConfig "youtrack.username" youtrackUsername
         ValidateConfig "youtrack.password" youtrackPassword
@@ -166,6 +170,11 @@ type PullRequestService() as self =
 
         // Use
         let allRepos = repos.Value.Split(',')
+        github2youtrack <- github2youtrackMappingsStr.Value.Split(',') 
+        |> Seq.map (fun mapping -> mapping.Split(':')) 
+        |> Seq.map (fun a -> ((Seq.head a).Trim(), (Seq.last a).Trim()))
+        |> Map.ofSeq<string, string>
+
         github.CreateWebHooks allRepos publicUri.Value
         github.ProcessRepos allRepos (fun prUri -> pollAgent.Post(prUri))
         result.Return()
@@ -176,7 +185,7 @@ type PullRequestService() as self =
         let githubEvent = request.ToText()
         logger.DebugFormat("Payload: ({0})", githubEvent)
         let github = MindTouch.Github.t(owner.Value, token.Value)
-        let youtrack = new MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value)
+        let youtrack = new MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value, github2youtrack)
         JsonValue.Parse(githubEvent)
         |> MindTouch.PullRequest.DeterminePullRequestTypeFromEvent github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
         |> github.ProcessPullRequestType (fun prUri -> pollAgent.Post(prUri)) youtrack.ProcessMergedPullRequest

@@ -1,4 +1,25 @@
-﻿[<RequireQualifiedAccess>]
+﻿(*
+ * MindTouch.YouTrack - A client to the YouTrack API
+ *
+ * Copyright (C) 2006-2013 MindTouch, Inc.
+ * www.mindtouch.com  oss@mindtouch.com
+ *
+ * For community documentation and downloads visit help.mindtouch.us;
+ * please review the licensing section.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *)
+[<RequireQualifiedAccess>]
 module MindTouch.YouTrack
 open log4net
 open MindTouch.Dream
@@ -13,28 +34,13 @@ type MergedPullRequestMetadata = {
     Release : DateTime
 }
 
-(* github to youtrack usernames mapping *)
-let github2youtrack = [
-    ("nataren", "cesarn");
-    ("modethirteen", "andyv");
-    ("bjorg", "SteveB");
-    ("Petee", "PeteE");
-    ("programzeta", "ryanc");
-    ("kazad", "kalida");
-    ("sdether", "arnec");
-    ("yurigorokhov", "yurig");
-    ("aaronmars", "aaronm");
-    ("theresam", "theresam");
-    ("trypton", "karena");
-    ("jedapostol", "jeda");
-    ("hurgleburgler", "dianaw")] |> Map.ofList
-
-type t(hostname : string, username, password) =
+type t(hostname : string, username, password, github2youtrackMapping : Map<string, string>) =
+    let github2youtrack = github2youtrackMapping
     let logger = LogManager.GetLogger typedefof<t>
     let api =  Plug.New(new XUri(hostname)).WithCredentials(username, password)
 
     member this.IssuesValidator (issues : seq<string>) =
-        logger.DebugFormat("IssuesValidator with '{0}'", String.Join(",", issues))
+        logger.DebugFormat("IssuesValidator with '{0}'", String.Join(", ", issues))
         not << Seq.isEmpty <| this.FilterOutNotExistentIssues issues
 
     member this.FilterOutNotExistentIssues (issues : seq<string>) =

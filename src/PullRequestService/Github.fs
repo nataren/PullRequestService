@@ -1,6 +1,5 @@
 ﻿(*
- * MindTouch PullRequestService - a DreamService that awaits pull requests
- * notifications from Github and acts upon it
+ * MindTouch.Github A client to the Github API
  *
  * Copyright (C) 2006-2013 MindTouch, Inc.
  * www.mindtouch.com  oss@mindtouch.com

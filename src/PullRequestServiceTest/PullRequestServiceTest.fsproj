@@ -37,9 +37,44 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Numerics" />
+    <Reference Include="FsUnit.NUnit">
+      <HintPath>..\packages\FsUnit.1.2.1.0\Lib\Net40\FsUnit.NUnit.dll</HintPath>
+    </Reference>
+    <Reference Include="nunit.framework">
+      <HintPath>..\packages\NUnit.2.6.2\lib\nunit.framework.dll</HintPath>
+    </Reference>
+    <Reference Include="PullRequestService">
+      <HintPath>..\redist\PullRequestService.dll</HintPath>
+    </Reference>
+    <Reference Include="FSharp.Data.DesignTime">
+      <HintPath>..\redist\FSharp.Data.DesignTime.dll</HintPath>
+    </Reference>
+    <Reference Include="FSharp.Data">
+      <HintPath>..\redist\FSharp.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="Autofac">
+      <HintPath>..\redist\Autofac.dll</HintPath>
+    </Reference>
+    <Reference Include="SgmlReaderDll">
+      <HintPath>..\redist\SgmlReaderDll.dll</HintPath>
+    </Reference>
+    <Reference Include="mindtouch.core">
+      <HintPath>..\redist\mindtouch.core.dll</HintPath>
+    </Reference>
+    <Reference Include="mindtouch.dream">
+      <HintPath>..\redist\mindtouch.dream.dll</HintPath>
+    </Reference>
+    <Reference Include="log4net">
+      <HintPath>..\redist\log4net.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="PullRequestTests\DeterminePullRequestType.fs" />
+    <Compile Include="PullRequestTests\DeterminePullRequestTypeFromEvent.fs" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets" />
+  <ItemGroup>
+    <Folder Include="PullRequestTests\" />
+  </ItemGroup>
 </Project>
