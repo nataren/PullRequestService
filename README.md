@@ -48,6 +48,10 @@ Create a file `pr.config` with the following content, and change the values appr
                 <merge.ttl>{MILLISECONDS_TO_WAIT_BEFORE_TRYING_TO_MERGE_PULL_REQUEST_AGAIN}</merge.ttl>
                 <mergeability.retries>{NUMBER_OF_MERGEABILITY_CHECK_RETRIES}</mergeability.retries>
                 <mergeability.ttl>{MILLISECONDS_TO_WAIT_BEFORE_CHECKING_MERGEABILITY}</mergeability.ttl>
+                <github2youtrack>{COMMA_SEPARATED_LIST_OF_COLON_SEPARATED_GITHUB_2_YOUTRACK_USERNAMES_MAPPING}</github2youtrack>
+                <youtrack.hostname>{YOUTRACK_HOSTNAME}</youtrack.hostname>
+                <youtrack.username>{YOUTRACK_USERNAME}</youtrack.username>
+                <youtrack.password>{YOUTRACK_PASSWORD}</youtrack.password>
 			</config>
 		</action>
 	</script>
