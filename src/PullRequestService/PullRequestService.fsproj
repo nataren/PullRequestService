@@ -59,11 +59,11 @@
     <Compile Include="YouTrack.fs" />
     <Compile Include="PullRequest.fs" />
     <Compile Include="Github.fs" />
-    <Compile Include="Program.fs" />
     <None Include="App.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="packages.config" />
+    <Compile Include="PullRequestService.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Autofac">
