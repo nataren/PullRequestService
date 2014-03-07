@@ -35,11 +35,17 @@ type t(owner, token) =
     let owner = owner
     let token = token
     let logger = LogManager.GetLogger typedefof<t>
-    let GITHUB_API = Plug.New(new XUri("https://api.github.com"))
+    let authPair = new KeyValuePair<_, _>("Authorization", "token " + token)
+    let api = Plug.New(new XUri("https://api.github.com"))
 
     let Json(payload : string, headers : seq<KeyValuePair<string, string>>) =
          new DreamMessage(DreamStatus.Ok, new DreamHeaders(headers), MimeType.JSON, payload)
 
+    let Auth = Json("", [| authPair |])
+
+    let sortByReleaseDate branch =
+        MindTouch.DateUtils.getBranchDate <| branch?name.AsString()
+    
     member this.CommentOnPullRequest (commentUri : XUri) (comment : String) =
         logger.DebugFormat("Going to create a comment at '{0}'", commentUri)
         let msg = Json(String.Format("""{{ "body" : "{0}"}}""", comment), [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
@@ -57,13 +63,13 @@ type t(owner, token) =
 
     member this.WebHookExist repo publicUri =
         let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
-        let hooks = JsonValue.Parse(GITHUB_API.At("repos", owner, repo, "hooks").Get(auth).ToText()).AsArray()
+        let hooks = JsonValue.Parse(api.At("repos", owner, repo, "hooks").Get(auth).ToText()).AsArray()
         let isPullRequestEvent (events : JsonValue[]) = Seq.exists (fun (event : JsonValue) -> event.AsString() = "pull_request") events
         hooks |> Seq.exists (fun (hook : JsonValue) -> isPullRequestEvent(hook?events.AsArray()) && hook?name.AsString() = "web" && hook?config?url.AsString() = publicUri)
         
     member this.CreateWebHook repo (publicUri : string) =
         let createHook = Json(String.Format("""{{ "name" : "web", "events" : ["pull_request"], "config" : {{ "url" : "{0}", "content_type" : "json" }} }}""",  publicUri), [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
-        GITHUB_API.At("repos", owner, repo, "hooks").Post(createHook)
+        api.At("repos", owner, repo, "hooks").Post(createHook)
 
     member this.CreateWebHooks repos (publicUri : string) =
         repos
@@ -77,7 +83,7 @@ type t(owner, token) =
     member this.GetOpenPullRequests (repo : string) =
         logger.DebugFormat("Getting the open pull requests for repo '{0}'", repo)
         let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
-        JsonValue.Parse(GITHUB_API.At("repos", owner, repo, "pulls").Get(auth).ToText()).AsArray()
+        JsonValue.Parse(api.At("repos", owner, repo, "pulls").Get(auth).ToText()).AsArray()
 
     member this.ProcessPullRequests pollAction prs =
         prs |> Seq.iter (fun pr -> pollAction(new XUri(pr?url.AsString())))
@@ -136,6 +142,30 @@ type t(owner, token) =
             logger.DebugFormat("Is '{0}' reopened? {1}", issueUri.ToString(), isReopened)
             isReopened
 
+    member this.GetRepoBranchesInfo repo =
+        JsonValue.Parse(api.At("repos", owner, repo, "branches").Get(Auth).ToText()).AsArray()
+    
+    member this.GetBranch repo branch =
+        JsonValue.Parse(api.At("repos", owner, repo, "branches", branch).Get(Auth).ToText())
+
+    member this.GetBranches repo =
+        (this.GetRepoBranchesInfo repo)
+        |> Seq.map (fun branch -> branch?name.AsString())
+        |> Seq.filter (fun branch -> branch.StartsWith("release_"))
+        |> Seq.map (fun branch -> this.GetBranch repo branch)
+        |> Seq.sortBy sortByReleaseDate
+
+    member this.DeleteReference ref = 
+        ()
+
+    member this.CreateTag =
+        ()
+
+    member this.ArchiveBranches repo branchesToKeep =
+        let branches = this.GetBranches repo
+        branches
+        |> Seq.sortBy sortByReleaseDate
+        |> Seq.take (Seq.length branches - branchesToKeep)
 
 
 

@@ -39,7 +39,6 @@ type t =
 | Merged of MindTouch.YouTrack.MergedPullRequestMetadata
 | Skip of XUri
 
-let DATE_PATTERN = "yyyyMMdd"
 let logger = LogManager.GetLogger typedefof<t>
 
 let IsMergeable pr =
@@ -84,8 +83,8 @@ let targetOpenBranch targetBranchDate =
     (targetBranchDate - DateTime.Now) >= TimeSpan(6,2,0,0)
 
 let getTargetBranchDate pr =
-    let targetBranch = pr?``base``?ref.AsString()
-    DateTime.ParseExact(targetBranch.Substring(targetBranch.Length - DATE_PATTERN.Length), DATE_PATTERN, null)
+    let targetBranch = pr?``base``?ref.AsString() in
+        MindTouch.DateUtils.getBranchDate targetBranch
 
 let IsAutoMergeablePullRequest pr =
     IsMergeable pr && targetOpenBranch(getTargetBranchDate pr)
