@@ -45,6 +45,9 @@ type t(owner, token) =
 
     let sortByReleaseDate branch =
         MindTouch.DateUtils.getBranchDate <| branch?name.AsString()
+
+    let GetArchiveLightweightTagPayload (prefix : String) (branch : JsonValue) =
+        JsonValue.Parse(String.Format("""{{ "ref" : "refs/tags/{0}", "sha" : "{1}" }}""", String.Format("{0}{1}", prefix, branch?name.AsString()), branch?commit?sha.AsString())).AsString()
     
     member this.CommentOnPullRequest (commentUri : XUri) (comment : String) =
         logger.DebugFormat("Going to create a comment at '{0}'", commentUri)
@@ -154,19 +157,29 @@ type t(owner, token) =
         |> Seq.filter (fun branch -> branch.StartsWith("release_"))
         |> Seq.map (fun branch -> this.GetBranch repo branch)
         |> Seq.sortBy sortByReleaseDate
+    
+    member this.CreateLightweightTag (owner : String) (repo : String) (prefix : String) branch =
+        try
+            api.At("repos", owner, repo, "git", "refs").Post(Json(GetArchiveLightweightTagPayload prefix branch, [| |]))
+        with
+            | ex -> logger.DebugExceptionMethodCall(ex, "Failed trying to create a lightweight tag for prefix = '{0}', branch = '{1}'", prefix, branch?name.AsString()); DreamMessage.InternalError() 
 
-    member this.DeleteReference ref = 
-        ()
+    member this.DeleteBranch repo (branch : JsonValue) =
+        let branchname = branch?name.AsString()
+        try
+            api.At("repos", owner, repo, "git", "ref", branchname).Delete()
+        with
+        | ex -> logger.DebugExceptionMethodCall(ex, "Failed trying to delete ref '{0}' on repo '{1}'", branchname, repo); DreamMessage.InternalError();
 
-    member this.CreateTag =
-        ()
-
-    member this.ArchiveBranches repo branchesToKeep =
-        let branches = this.GetBranches repo
-        branches
+    member this.ArchiveBranches repo numberOfBranchesToKeep =
+        let allBranches = this.GetBranches repo
+        allBranches
         |> Seq.sortBy sortByReleaseDate
-        |> Seq.take (Seq.length branches - branchesToKeep)
-
-
-
+        |> Seq.take (Seq.length allBranches - numberOfBranchesToKeep)
+        |> Seq.map (fun branch -> this.CreateLightweightTag owner repo "archive_" branch)
+        |> Seq.filter (fun msg -> msg.Status = DreamStatus.Ok)
+        |> Seq.map (fun resp -> JsonValue.Parse(resp.ToText()))
+        |> Seq.iter (fun newtag -> logger.DebugFormat("Created '{0}'", newtag.AsString()))
+        allBranches
+        |> Seq.map (fun branch -> this.DeleteBranch repo)
 
