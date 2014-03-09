@@ -77,7 +77,7 @@ type PullRequestService() as self =
     // Immutable
     let logger = LogManager.GetLogger typedefof<PullRequestService>
     let timerFactory = TaskTimerFactory.Create(self)
-    let branchArchiverExpiringDictionary = new ExpiringDictionary<XUri, int>(timerFactory, false)
+    let branchArchivalExpiringDictionary = new ExpiringDictionary<string, int>(timerFactory, false)
 
     // Pull Request polling agent
     let pullRequestPollingAgent =
@@ -118,6 +118,11 @@ type PullRequestService() as self =
         | None -> raise(MissingConfig key)
         | _ -> ()
 
+    let GetValue value def =
+        match value with
+        | None -> def
+        | Some x -> x
+
     // NOTE(cesarn): Using the third parameter as the type constraint
     // since 'let' would not let me using constraints in angle brackets
     let GetConfigValue (doc : XDoc) (key : string) (t : 'T) : 'T option =
@@ -153,8 +158,8 @@ type PullRequestService() as self =
         youtrackUsername <- config' "youtrack.username"
         youtrackPassword <- config' "youtrack.password"
         let github2youtrackMappingsStr = config' "github2youtrack"
-        let archiveBranchesTTL = GetConfigValue config "archive.branches.ttl" (24 * 60 * 60 * 1000)
-        let numberOfBranchToKeep = GetConfigValue config "archive.branches.keep" 4
+        let archiveBranchesTTL = GetValue (GetConfigValue config "archive.branches.ttl" 0.) (24. * 60. * 60. * 1000.)
+        let numberOfBranchesToKeep = GetValue (GetConfigValue config "archive.branches.keep" 0) 4
 
         // Validate
         ValidateConfig "github.token" token
@@ -173,8 +178,24 @@ type PullRequestService() as self =
         mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityTtl.Value)
         let github = MindTouch.Github.t(owner.Value, token.Value)
 
-        // Use
+        // Github repos
         let allRepos = repos.Value.Split(',')
+       
+        // Setup the branch archival
+        branchArchivalExpiringDictionary.EntryExpired.Add <|
+            fun args ->
+                let entry = args.Entry
+                let repo = entry.Key
+                let numberOfBranches = entry.Value
+                try
+                    github.ArchiveBranches repo numberOfBranches |> ignore
+                finally
+                    branchArchivalExpiringDictionary.Set(repo, numberOfBranches, TimeSpan.FromMilliseconds archiveBranchesTTL)
+
+        allRepos
+        |> Seq.iter (fun repo -> branchArchivalExpiringDictionary.Set(repo, numberOfBranchesToKeep, TimeSpan.FromMilliseconds archiveBranchesTTL))
+
+        // Use
         github2youtrack <- github2youtrackMappingsStr.Value.Split(',') 
         |> Seq.map (fun mapping -> mapping.Split(':')) 
         |> Seq.map (fun a -> ((Seq.head a).Trim(), (Seq.last a).Trim()))
