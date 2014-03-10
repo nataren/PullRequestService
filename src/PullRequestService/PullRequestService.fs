@@ -159,7 +159,7 @@ type PullRequestService() as self =
         youtrackPassword <- config' "youtrack.password"
         let github2youtrackMappingsStr = config' "github2youtrack"
         let archiveBranchesTTL = GetValue (GetConfigValue config "archive.branches.ttl" 0.) (24. * 60. * 60. * 1000.)
-        let numberOfBranchesToKeep = GetValue (GetConfigValue config "archive.branches.keep" 0) 4
+        let numberOfBranchesToKeep = GetValue (GetConfigValue config "archive.branches.keep" 0) 10
 
         // Validate
         ValidateConfig "github.token" token
