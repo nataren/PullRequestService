@@ -181,7 +181,7 @@ type PullRequestService() as self =
         // Github repos
         let allRepos = repos.Value.Split(',')
        
-        // Setup the branch archival
+        // Setup the branch archival process
         branchArchivalExpiringDictionary.EntryExpired.Add <|
             fun args ->
                 let entry = args.Entry

@@ -159,52 +159,63 @@ type t(owner, token) =
         |> Seq.filter (fun branch -> branch.StartsWith("release_"))
         |> Seq.map (fun branch -> this.GetBranch repo branch)
         |> Seq.sortBy sortByReleaseDate
+        |> Seq.toArray
     
     member this.CreateLightweightTag (owner : String) (repo : String) (prefix : String) branch =
         try
             let refCreationPlug = api.At("repos", owner, repo, "git", "refs")
             let payload = GetArchiveLightweightTagPayload prefix branch
             logger.DebugFormat("Will hit '{0}' with '{1}'", refCreationPlug.ToString(), payload)
-            refCreationPlug.Post(Auth payload)
+            Some <| refCreationPlug.Post(Auth payload)
         with
-            | ex -> logger.DebugExceptionMethodCall(ex, "Failed trying to create a lightweight tag for prefix = '{0}', branch = '{1}', '{2}'", prefix, branch?name.AsString(), ex.ToString()); DreamMessage.InternalError() 
+            | ex -> logger.DebugExceptionMethodCall(ex, "Failed trying to create a lightweight tag for prefix = '{0}', branch = '{1}', '{2}'", prefix, branch?name.AsString(), ex.ToString()); None
 
-    member this.DeleteBranch repo refLevel (branch : JsonValue) =
+    member this.DeleteBranch repo refLevel (branch : JsonValue) : DreamMessage option =
         let branchname = branch?name.AsString()
         logger.DebugFormat("Will attempt to delete branch '{0}/{1}'", refLevel, branchname)
         try
-            api.At("repos", owner, repo, "git", "refs", refLevel, branchname).Delete(Auth "")
+            Some <| api.At("repos", owner, repo, "git", "refs", refLevel, branchname).Delete(Auth "")
         with
-        | ex -> logger.DebugExceptionMethodCall(ex, "Failed trying to delete ref '{0}' on repo '{1}'", branchname, repo); DreamMessage.InternalError();
+        | ex -> logger.DebugExceptionMethodCall(ex, "Failed trying to delete ref '{0}' on repo '{1}'", branchname, repo); None
 
-    member this.ArchiveBranches repo numberOfBranchesToKeep =
+    member this.ArchiveBranches repo numberOfBranchesToKeep : DreamMessage option [] option =
         logger.DebugFormat("Will attempt to archive release branches for repo '{0}', number of branches to keep '{1}'", repo, numberOfBranchesToKeep)
         let allBranches = this.GetBranches repo
         let sortedBranches = allBranches |> Seq.sortBy sortByReleaseDate
         let numberOfBranchesToArchive = Seq.length allBranches - numberOfBranchesToKeep
         if numberOfBranchesToArchive <= 0 then
-            raise (new Exception("No more branches to archive"))
-        let branchesToArchive = sortedBranches |> Seq.take (numberOfBranchesToArchive)
-        let branchesToArchiveMap = branchesToArchive |> Seq.map (fun branch -> (branch?name.AsString(), branch)) |> Map.ofSeq<string, JsonValue>
+            (None : DreamMessage option [] option)
+        else 
+            let branchesToArchive = sortedBranches |> Seq.take (numberOfBranchesToArchive)
+            let branchesToArchiveMap = branchesToArchive |> Seq.map (fun branch -> (branch?name.AsString(), branch)) |> Map.ofSeq<string, JsonValue>
 
-        logger.DebugFormat("sortedBranches: {0}", String.Join(", ", sortedBranches |> Seq.map (fun b -> b?name.AsString())))
-        // sortedBranches |> Seq.map (fun branch -> this.DeleteBranch repo "heads" branch) |> Seq.toList
+            logger.DebugFormat("sortedBranches: {0}", String.Join(", ", sortedBranches |> Seq.map (fun b -> b?name.AsString())))
+            logger.DebugFormat("branchesToArchive for repo '{1}': '{0}'", String.Join(", ", branchesToArchive |> Seq.map (fun branch -> branch?name.AsString())), repo)
+            let tagCreationMessages = branchesToArchive |> Seq.map (fun branch -> this.CreateLightweightTag owner repo "archive_" branch) |> Seq.toArray
 
-        logger.DebugFormat("branchesToArchive for repo '{1}': '{0}'", String.Join(", ", branchesToArchive |> Seq.map (fun branch -> branch?name.AsString())), repo)
-        let tagCreationMessages = branchesToArchive |> Seq.map (fun branch -> this.CreateLightweightTag owner repo "archive_" branch)
+            logger.DebugFormat("tagCreationMessages: {0}", String.Join(", ", tagCreationMessages |> Seq.map (fun msg -> match msg with | Some x -> x.Status | None -> DreamStatus.InternalError)))
+            let createdTagMessages = tagCreationMessages |> Seq.filter (fun msg -> match msg with | Some x -> x.Status = DreamStatus.Created | None -> false)
+            let createdTagObjects = createdTagMessages |> Seq.map (fun resp -> match resp with | Some x -> JsonValue.Parse(x.ToText()) | None -> JsonValue.Object([] |> Map.ofSeq<string, JsonValue>))
+            let createdTagNames = createdTagObjects |> Seq.map (fun reference -> reference?ref.AsString()) |> Seq.toArray
 
-        logger.DebugFormat("tagCreationMessages: {0}", String.Join(", ", tagCreationMessages |> Seq.map (fun msg -> msg.Status)))
-        let createdTagMessages = tagCreationMessages |> Seq.filter (fun msg -> msg.Status = DreamStatus.Ok)
-        let createdTagObjects = createdTagMessages |> Seq.map (fun resp -> JsonValue.Parse(resp.ToText()))
-        let createdTagNames = createdTagObjects |> Seq.map (fun reference -> reference?ref.AsString())
+            logger.DebugFormat("Created tag names: '{0}'", String.Join(", ", createdTagNames))
+            if Seq.isEmpty createdTagNames then
+                logger.DebugFormat("No tags were created")
+                (None : DreamMessage option [] option)
+            else
+                let branchesToDelete =
+                    createdTagNames
+                    |> Seq.map (fun reference -> reference.Split('/'))
+                    |> Seq.map (fun components -> components |> Seq.last)
+                    |> Seq.map (fun name -> name.Substring 8)
+                    |> Seq.toArray
 
-        logger.DebugFormat("Created tag names: '{0}'", String.Join(", ", createdTagNames))
-        let branchesToDelete = createdTagNames |> Seq.map (fun reference -> reference.Split('/') |> Seq.last) |> Seq.map (fun name -> name.Substring 8)
+                logger.DebugFormat("branchesToDelete for repo '{0}': '{1}'", repo, String.Join(", ", branchesToDelete))
+                branchesToDelete
+                |> Seq.filter (fun branch -> Map.containsKey branch branchesToArchiveMap)
+                |> Seq.map (fun branch -> this.DeleteBranch repo "heads" branchesToArchiveMap.[branch])
+                |> Seq.toArray
+                |> Some
 
-        logger.DebugFormat("branchesToDelete for repo '{0}': '{1}'", repo, String.Join(", ", branchesToDelete))
-        branchesToDelete
-        |> Seq.map (fun branch -> Map.tryFind branch branchesToArchiveMap)
-        |> Seq.map (fun branch -> match branch with | None -> DreamMessage.NotModified() | Some b -> this.DeleteBranch repo "heads" b)
-        |> Seq.toArray
 
 
