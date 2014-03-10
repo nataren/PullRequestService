@@ -28,6 +28,7 @@ open MindTouch.Dream
 
 open FSharp.Data.Json
 open FSharp.Data.Json.Extensions
+open System.Globalization
 
 type PullRequest = MindTouch.PullRequest.t
 open log4net
@@ -44,7 +45,9 @@ type t(owner, token) =
     let Auth payload = Json(payload, [| authPair |])
 
     let sortByReleaseDate (branch : JsonValue) =
-        MindTouch.DateUtils.getBranchDate <| branch?name.AsString()
+        let branchname = branch?name.AsString()
+        logger.DebugFormat("Trying to parse date {0}", branchname)
+        MindTouch.DateUtils.getBranchDate <| branchname.Substring 8
 
     let GetArchiveLightweightTagPayload (prefix : String) (branch : JsonValue) =
         let tag = String.Format("""{{ "ref" : "refs/tags/{0}", "sha" : "{1}" }}""", String.Format("{0}{1}", prefix, branch?name.AsString()), branch?commit?sha.AsString())
@@ -158,7 +161,6 @@ type t(owner, token) =
         |> Seq.map (fun branch -> branch?name.AsString())
         |> Seq.filter (fun branch -> branch.StartsWith("release_"))
         |> Seq.map (fun branch -> this.GetBranch repo branch)
-        |> Seq.sortBy sortByReleaseDate
         |> Seq.toArray
     
     member this.CreateLightweightTag (owner : String) (repo : String) (prefix : String) branch =
@@ -181,9 +183,20 @@ type t(owner, token) =
     member this.ArchiveBranches repo numberOfBranchesToKeep : DreamMessage option [] option =
         logger.DebugFormat("Will attempt to archive release branches for repo '{0}', number of branches to keep '{1}'", repo, numberOfBranchesToKeep)
         let allBranches = this.GetBranches repo
-        let sortedBranches = allBranches |> Seq.sortBy sortByReleaseDate
-        let numberOfBranchesToArchive = Seq.length allBranches - numberOfBranchesToKeep
+        let sortedBranches =
+            allBranches
+            |> Seq.choose (fun s ->
+                               let branchname = s?name.AsString() in
+                               logger.DebugFormat("branchname {0}", branchname)
+                               let (valid, result) = DateTime.TryParseExact(branchname.Substring 8, MindTouch.DateUtils.DATE_PATTERN, null, DateTimeStyles.None) in
+                                   if valid then Some s else None)
+            |> Seq.sortBy sortByReleaseDate
+            |> Seq.toArray
+        logger.DebugFormat("Sorted branches: {0}", String.Join(", ", sortedBranches |> Seq.map (fun b -> b?name.AsString())))
+        let availableReleaseBranches = Seq.length sortedBranches
+        let numberOfBranchesToArchive = availableReleaseBranches - numberOfBranchesToKeep
         if numberOfBranchesToArchive <= 0 then
+            logger.DebugFormat("There are {0} release branches, but the minimum to keep is {1}, therefore I will not do anything", availableReleaseBranches, numberOfBranchesToKeep)
             (None : DreamMessage option [] option)
         else 
             let branchesToArchive = sortedBranches |> Seq.take (numberOfBranchesToArchive)
