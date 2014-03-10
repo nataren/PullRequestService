@@ -28,6 +28,7 @@ open MindTouch.Dream
 
 open FSharp.Data.Json
 open FSharp.Data.Json.Extensions
+open System.Globalization
 
 type PullRequest = MindTouch.PullRequest.t
 open log4net
@@ -35,11 +36,24 @@ type t(owner, token) =
     let owner = owner
     let token = token
     let logger = LogManager.GetLogger typedefof<t>
-    let GITHUB_API = Plug.New(new XUri("https://api.github.com"))
+    let authPair = new KeyValuePair<_, _>("Authorization", "token " + token)
+    let api = Plug.New(new XUri("https://api.github.com"))
 
     let Json(payload : string, headers : seq<KeyValuePair<string, string>>) =
          new DreamMessage(DreamStatus.Ok, new DreamHeaders(headers), MimeType.JSON, payload)
 
+    let Auth payload = Json(payload, [| authPair |])
+
+    let sortByReleaseDate (branch : JsonValue) =
+        let branchname = branch?name.AsString()
+        logger.DebugFormat("Trying to parse date {0}", branchname)
+        MindTouch.DateUtils.getBranchDate <| branchname.Substring 8
+
+    let GetArchiveLightweightTagPayload (prefix : String) (branch : JsonValue) =
+        let tag = String.Format("""{{ "ref" : "refs/tags/{0}", "sha" : "{1}" }}""", String.Format("{0}{1}", prefix, branch?name.AsString()), branch?commit?sha.AsString())
+        logger.DebugFormat("Builded payload for tag '{0}'", tag)
+        tag
+    
     member this.CommentOnPullRequest (commentUri : XUri) (comment : String) =
         logger.DebugFormat("Going to create a comment at '{0}'", commentUri)
         let msg = Json(String.Format("""{{ "body" : "{0}"}}""", comment), [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
@@ -57,13 +71,13 @@ type t(owner, token) =
 
     member this.WebHookExist repo publicUri =
         let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
-        let hooks = JsonValue.Parse(GITHUB_API.At("repos", owner, repo, "hooks").Get(auth).ToText()).AsArray()
+        let hooks = JsonValue.Parse(api.At("repos", owner, repo, "hooks").Get(auth).ToText()).AsArray()
         let isPullRequestEvent (events : JsonValue[]) = Seq.exists (fun (event : JsonValue) -> event.AsString() = "pull_request") events
         hooks |> Seq.exists (fun (hook : JsonValue) -> isPullRequestEvent(hook?events.AsArray()) && hook?name.AsString() = "web" && hook?config?url.AsString() = publicUri)
         
     member this.CreateWebHook repo (publicUri : string) =
         let createHook = Json(String.Format("""{{ "name" : "web", "events" : ["pull_request"], "config" : {{ "url" : "{0}", "content_type" : "json" }} }}""",  publicUri), [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
-        GITHUB_API.At("repos", owner, repo, "hooks").Post(createHook)
+        api.At("repos", owner, repo, "hooks").Post(createHook)
 
     member this.CreateWebHooks repos (publicUri : string) =
         repos
@@ -77,7 +91,7 @@ type t(owner, token) =
     member this.GetOpenPullRequests (repo : string) =
         logger.DebugFormat("Getting the open pull requests for repo '{0}'", repo)
         let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
-        JsonValue.Parse(GITHUB_API.At("repos", owner, repo, "pulls").Get(auth).ToText()).AsArray()
+        JsonValue.Parse(api.At("repos", owner, repo, "pulls").Get(auth).ToText()).AsArray()
 
     member this.ProcessPullRequests pollAction prs =
         prs |> Seq.iter (fun pr -> pollAction(new XUri(pr?url.AsString())))
@@ -136,7 +150,85 @@ type t(owner, token) =
             logger.DebugFormat("Is '{0}' reopened? {1}", issueUri.ToString(), isReopened)
             isReopened
 
+    member this.GetRepoBranchesInfo repo =
+        JsonValue.Parse(api.At("repos", owner, repo, "branches").Get(Auth "").ToText()).AsArray()
+    
+    member this.GetBranch repo branch =
+        JsonValue.Parse(api.At("repos", owner, repo, "branches", branch).Get(Auth "").ToText())
 
+    member this.GetBranches repo =
+        (this.GetRepoBranchesInfo repo)
+        |> Seq.map (fun branch -> branch?name.AsString())
+        |> Seq.filter (fun branch -> branch.StartsWith("release_"))
+        |> Seq.map (fun branch -> this.GetBranch repo branch)
+        |> Seq.toArray
+    
+    member this.CreateLightweightTag (owner : String) (repo : String) (prefix : String) branch =
+        try
+            let refCreationPlug = api.At("repos", owner, repo, "git", "refs")
+            let payload = GetArchiveLightweightTagPayload prefix branch
+            logger.DebugFormat("Will hit '{0}' with '{1}'", refCreationPlug.ToString(), payload)
+            Some <| refCreationPlug.Post(Auth payload)
+        with
+            | ex -> logger.DebugExceptionMethodCall(ex, "Failed trying to create a lightweight tag for prefix = '{0}', branch = '{1}', '{2}'", prefix, branch?name.AsString(), ex.ToString()); None
+
+    member this.DeleteBranch repo refLevel (branch : JsonValue) : DreamMessage option =
+        let branchname = branch?name.AsString()
+        logger.DebugFormat("Will attempt to delete branch '{0}/{1}'", refLevel, branchname)
+        try
+            Some <| api.At("repos", owner, repo, "git", "refs", refLevel, branchname).Delete(Auth "")
+        with
+        | ex -> logger.DebugExceptionMethodCall(ex, "Failed trying to delete ref '{0}' on repo '{1}'", branchname, repo); None
+
+    member this.ArchiveBranches repo numberOfBranchesToKeep : DreamMessage option [] option =
+        logger.DebugFormat("Will attempt to archive release branches for repo '{0}', number of branches to keep '{1}'", repo, numberOfBranchesToKeep)
+        let allBranches = this.GetBranches repo
+        let sortedBranches =
+            allBranches
+            |> Seq.choose (fun s ->
+                               let branchname = s?name.AsString() in
+                               logger.DebugFormat("branchname {0}", branchname)
+                               let (valid, result) = DateTime.TryParseExact(branchname.Substring 8, MindTouch.DateUtils.DATE_PATTERN, null, DateTimeStyles.None) in
+                                   if valid then Some s else None)
+            |> Seq.sortBy sortByReleaseDate
+            |> Seq.toArray
+        logger.DebugFormat("Sorted branches: {0}", String.Join(", ", sortedBranches |> Seq.map (fun b -> b?name.AsString())))
+        let availableReleaseBranches = Seq.length sortedBranches
+        let numberOfBranchesToArchive = availableReleaseBranches - numberOfBranchesToKeep
+        if numberOfBranchesToArchive <= 0 then
+            logger.DebugFormat("There are {0} release branches, but the minimum to keep is {1}, therefore I will not do anything", availableReleaseBranches, numberOfBranchesToKeep)
+            (None : DreamMessage option [] option)
+        else 
+            let branchesToArchive = sortedBranches |> Seq.take (numberOfBranchesToArchive)
+            let branchesToArchiveMap = branchesToArchive |> Seq.map (fun branch -> (branch?name.AsString(), branch)) |> Map.ofSeq<string, JsonValue>
+
+            logger.DebugFormat("sortedBranches: {0}", String.Join(", ", sortedBranches |> Seq.map (fun b -> b?name.AsString())))
+            logger.DebugFormat("branchesToArchive for repo '{1}': '{0}'", String.Join(", ", branchesToArchive |> Seq.map (fun branch -> branch?name.AsString())), repo)
+            let tagCreationMessages = branchesToArchive |> Seq.map (fun branch -> this.CreateLightweightTag owner repo "archive_" branch) |> Seq.toArray
+
+            logger.DebugFormat("tagCreationMessages: {0}", String.Join(", ", tagCreationMessages |> Seq.map (fun msg -> match msg with | Some x -> x.Status | None -> DreamStatus.InternalError)))
+            let createdTagMessages = tagCreationMessages |> Seq.filter (fun msg -> match msg with | Some x -> x.Status = DreamStatus.Created | None -> false)
+            let createdTagObjects = createdTagMessages |> Seq.map (fun resp -> match resp with | Some x -> JsonValue.Parse(x.ToText()) | None -> JsonValue.Object([] |> Map.ofSeq<string, JsonValue>))
+            let createdTagNames = createdTagObjects |> Seq.map (fun reference -> reference?ref.AsString()) |> Seq.toArray
+
+            logger.DebugFormat("Created tag names: '{0}'", String.Join(", ", createdTagNames))
+            if Seq.isEmpty createdTagNames then
+                logger.DebugFormat("No tags were created")
+                (None : DreamMessage option [] option)
+            else
+                let branchesToDelete =
+                    createdTagNames
+                    |> Seq.map (fun reference -> reference.Split('/'))
+                    |> Seq.map (fun components -> components |> Seq.last)
+                    |> Seq.map (fun name -> name.Substring 8)
+                    |> Seq.toArray
+
+                logger.DebugFormat("branchesToDelete for repo '{0}': '{1}'", repo, String.Join(", ", branchesToDelete))
+                branchesToDelete
+                |> Seq.filter (fun branch -> Map.containsKey branch branchesToArchiveMap)
+                |> Seq.map (fun branch -> this.DeleteBranch repo "heads" branchesToArchiveMap.[branch])
+                |> Seq.toArray
+                |> Some
 
 
 

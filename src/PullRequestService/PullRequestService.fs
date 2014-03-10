@@ -55,6 +55,8 @@ type Agent<'T> = MailboxProcessor<'T>
 [<DreamServiceConfig("youtrack.hostname", "string", "The YouTrack hostname")>]
 [<DreamServiceConfig("youtrack.username", "string", "The YouTrack username")>]
 [<DreamServiceConfig("youtrack.password", "string", "The YouTrack password")>]
+[<DreamServiceConfig("archive.branches.ttl", "int", "How frequently we prune the branches. The value is in milliseconds, it defaults to everyday")>]
+[<DreamServiceConfig("archive.branches.keep", "int", "The number of release branches that we need to keep around. Defaults to 4")>]
 type PullRequestService() as self =
     inherit DreamService()
 
@@ -75,11 +77,12 @@ type PullRequestService() as self =
     // Immutable
     let logger = LogManager.GetLogger typedefof<PullRequestService>
     let timerFactory = TaskTimerFactory.Create(self)
+    let branchArchivalExpiringDictionary = new ExpiringDictionary<string, int>(timerFactory, false)
 
-    // Polling agent
-    let pollAgent =
-        let cache = new ExpiringDictionary<XUri, int>(timerFactory, false)
-        cache.EntryExpired.Add <|
+    // Pull Request polling agent
+    let pullRequestPollingAgent =
+        let pullRequestExpiringCache = new ExpiringDictionary<XUri, int>(timerFactory, false)
+        pullRequestExpiringCache.EntryExpired.Add <|
             fun args ->
                 let prUri, retry = args.Entry.Key, args.Entry.Value
                 if retry < mergeabilityRetries.Value then
@@ -94,7 +97,7 @@ type PullRequestService() as self =
                         | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed || e.Response.Status = DreamStatus.Unauthorized || e.Response.Status = DreamStatus.Forbidden ->
                             raise e
                         | e ->
-                            cache.Set(prUri, retry + 1, mergeabilityTTL)
+                            pullRequestExpiringCache.Set(prUri, retry + 1, mergeabilityTTL)
                             logger.Debug(String.Format("Will poll '{0}' status again in '{1}'", prUri, mergeabilityTTL), e)
                             raise e
                 else
@@ -107,13 +110,18 @@ type PullRequestService() as self =
                 logger.DebugFormat("Queued '{0}' for status check in '{1}'", msg, mergeabilityTTL)
                 return! loop cache
             }
-            loop(cache)
+            loop(pullRequestExpiringCache)
 
     //--- Functions ---
     let ValidateConfig key value =
         match value with
         | None -> raise(MissingConfig key)
         | _ -> ()
+
+    let GetValue value def =
+        match value with
+        | None -> def
+        | Some x -> x
 
     // NOTE(cesarn): Using the third parameter as the type constraint
     // since 'let' would not let me using constraints in angle brackets
@@ -150,6 +158,8 @@ type PullRequestService() as self =
         youtrackUsername <- config' "youtrack.username"
         youtrackPassword <- config' "youtrack.password"
         let github2youtrackMappingsStr = config' "github2youtrack"
+        let archiveBranchesTTL = GetValue (GetConfigValue config "archive.branches.ttl" 0.) (24. * 60. * 60. * 1000.)
+        let numberOfBranchesToKeep = GetValue (GetConfigValue config "archive.branches.keep" 0) 10
 
         // Validate
         ValidateConfig "github.token" token
@@ -168,15 +178,31 @@ type PullRequestService() as self =
         mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityTtl.Value)
         let github = MindTouch.Github.t(owner.Value, token.Value)
 
-        // Use
+        // Github repos
         let allRepos = repos.Value.Split(',')
+       
+        // Setup the branch archival process
+        branchArchivalExpiringDictionary.EntryExpired.Add <|
+            fun args ->
+                let entry = args.Entry
+                let repo = entry.Key
+                let numberOfBranches = entry.Value
+                try
+                    github.ArchiveBranches repo numberOfBranches |> ignore
+                finally
+                    branchArchivalExpiringDictionary.Set(repo, numberOfBranches, TimeSpan.FromMilliseconds archiveBranchesTTL)
+
+        allRepos
+        |> Seq.iter (fun repo -> branchArchivalExpiringDictionary.Set(repo, numberOfBranchesToKeep, TimeSpan.FromMilliseconds archiveBranchesTTL))
+
+        // Use
         github2youtrack <- github2youtrackMappingsStr.Value.Split(',') 
         |> Seq.map (fun mapping -> mapping.Split(':')) 
         |> Seq.map (fun a -> ((Seq.head a).Trim(), (Seq.last a).Trim()))
         |> Map.ofSeq<string, string>
 
         github.CreateWebHooks allRepos publicUri.Value
-        github.ProcessRepos allRepos (fun prUri -> pollAgent.Post(prUri))
+        github.ProcessRepos allRepos (fun prUri -> pullRequestPollingAgent.Post(prUri))
         result.Return()
         Seq.empty<IYield>.GetEnumerator()
 
@@ -188,7 +214,7 @@ type PullRequestService() as self =
         let youtrack = new MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value, github2youtrack)
         JsonValue.Parse(githubEvent)
         |> MindTouch.PullRequest.DeterminePullRequestTypeFromEvent github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
-        |> github.ProcessPullRequestType (fun prUri -> pollAgent.Post(prUri)) youtrack.ProcessMergedPullRequest
+        |> github.ProcessPullRequestType (fun prUri -> pullRequestPollingAgent.Post(prUri)) youtrack.ProcessMergedPullRequest
 
     [<DreamFeature("GET:status", "Check the service's status")>]
     member this.GetStatus (context : DreamContext) (request : DreamMessage) =
