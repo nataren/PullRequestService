@@ -52,6 +52,8 @@ Create a file `pr.config` with the following content, and change the values appr
                 <youtrack.hostname>{YOUTRACK_HOSTNAME}</youtrack.hostname>
                 <youtrack.username>{YOUTRACK_USERNAME}</youtrack.username>
                 <youtrack.password>{YOUTRACK_PASSWORD}</youtrack.password>
+                <archive.branches.ttl>{HOW_OFTEN_TO_ARCHIVE_BRANCHES_IN_MILLISECONDS}</archive.branches.ttl>
+                <archive.branches.keep>{HOW_MANY_RELEASE_BRANCHES_TO_KEEP_AROUND}</archive.branches.keep>
 			</config>
 		</action>
 	</script>
