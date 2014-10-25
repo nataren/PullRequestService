@@ -46,6 +46,7 @@ type Agent<'T> = MailboxProcessor<'T>
 [<DreamServiceConfig("github.token", "string", "A Github's personal API access token")>]
 [<DreamServiceConfig("github.owner", "string", "The owner of the repos we want to watch")>]
 [<DreamServiceConfig("github.repos", "string", "Comma separated list of repos to watch")>]
+[<DreamServiceConfig("github.gatekeepers", "string", "Comma separated list of items with the format reponame:commandSeparatedGithubUserNames, e.g. \"reponame:u1,u2\".")>]
 [<DreamServiceConfig("public.uri", "string", "The notify end-point's full public URI to use to communicate with this service")>]
 [<DreamServiceConfig("merge.retries", "int", "The number of times we should retry merging a pull request in case there was an error")>]
 [<DreamServiceConfig("merge.ttl", "int", "The amount of time (in milliseconds) that we need to wait before we try to merge the pull request again")>]
@@ -64,6 +65,7 @@ type PullRequestService() as self =
     // Config keys values
     let mutable token = None
     let mutable owner = None
+    let mutable gatekeepers = new Dictionary<string, seq<string>>()
     let mutable github2youtrack = Map.empty<string, string>
     let mutable youtrackHostname = None
     let mutable youtrackUsername = None
@@ -87,7 +89,7 @@ type PullRequestService() as self =
                 let prUri, retry = args.Entry.Key, args.Entry.Value
                 if retry < mergeabilityRetries.Value then
                     try
-                        let github = MindTouch.Github.t(owner.Value, token.Value)
+                        let github = MindTouch.Github.t(owner.Value, token.Value, gatekeepers)
                         let youtrack = MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value, github2youtrack)
                         JsonValue.Parse(github.GetPullRequestDetails(prUri).ToText())
                         |> MindTouch.PullRequest.DeterminePullRequestType github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
@@ -139,6 +141,13 @@ type PullRequestService() as self =
         else
             Some configVal
 
+    let GetGithubRepoToGateKeepersMapping (config : XDoc) : Dictionary<string, seq<string>> =
+        let repo2gateKeepers = new Dictionary<string, seq<string>>()
+        config.["repo"] |> Seq.iter (fun repo ->
+            repo2gateKeepers.[repo.["@name"].AsText.ToLowerInvariant()] <-
+                repo.["user"] |> Seq.map (fun user -> user.AsText.ToLowerInvariant()))
+        repo2gateKeepers
+
     //--- Methods ---
     override this.Start(config : XDoc, container : ILifetimeScope, result : Result) =
         // NOTE(cesarn): Commented out for now
@@ -176,7 +185,8 @@ type PullRequestService() as self =
         ValidateConfig "youtrack.password" youtrackPassword
         mergeTTL <- TimeSpan.FromMilliseconds(mergeTtl.Value)
         mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityTtl.Value)
-        let github = MindTouch.Github.t(owner.Value, token.Value)
+        gatekeepers <- GetGithubRepoToGateKeepersMapping config.["github.gatekeepers"]
+        let github = MindTouch.Github.t(owner.Value, token.Value, gatekeepers)
 
         // Github repos
         let allRepos = repos.Value.Split(',')
@@ -210,7 +220,7 @@ type PullRequestService() as self =
     member this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
         let githubEvent = request.ToText()
         logger.DebugFormat("Payload: ({0})", githubEvent)
-        let github = MindTouch.Github.t(owner.Value, token.Value)
+        let github = MindTouch.Github.t(owner.Value, token.Value, gatekeepers)
         let youtrack = new MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value, github2youtrack)
         JsonValue.Parse(githubEvent)
         |> MindTouch.PullRequest.DeterminePullRequestTypeFromEvent github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues
