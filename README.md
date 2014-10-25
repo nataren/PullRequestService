@@ -43,6 +43,12 @@ Create a file `pr.config` with the following content, and change the values appr
 				<github.token>{TOKEN}</github.token>
 				<github.owner>{OWNER}</github.owner>
 				<github.repos>{REPOS}</github.repos>
+				<github.gatekeepers>
+				  <repo name="{REPO_NAME}">
+				    <user>{USERNAME1}</user>
+				    <user>{USERNAME2}</user>
+				  </repo>
+				</github.gatekeepers>
 				<public.uri>{ROUTE_TO_NOTIFY_END_POINT</public.uri>
 				<merge.retries>{NUMBER_OF_MERGE_RETRIES}</merge.retries>
                 <merge.ttl>{MILLISECONDS_TO_WAIT_BEFORE_TRYING_TO_MERGE_PULL_REQUEST_AGAIN}</merge.ttl>
