@@ -80,7 +80,7 @@ let IsInvalidPullRequest pr =
     pr?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
    
 let targetOpenBranch targetBranchDate =
-    (targetBranchDate - DateTime.Now) >= TimeSpan(6,2,0,0)
+    (targetBranchDate - DateTime.UtcNow) >= TimeSpan.FromHours(138.)
 
 let getTargetBranchDate pr =
     let targetBranch = pr?``base``?ref.AsString() in

@@ -38,12 +38,13 @@ type t(owner, token, gatekeepers : Dictionary<string, seq<string>>) =
     let gatekeepers = gatekeepers
     let logger = LogManager.GetLogger typedefof<t>
     let authPair = new KeyValuePair<_, _>("Authorization", "token " + token)
+    let githubApiVersion = new KeyValuePair<_,_>("Accept", "application/vnd.github.v3+json")
     let api = Plug.New(new XUri("https://api.github.com"))
 
     let Json(payload : string, headers : seq<KeyValuePair<string, string>>) =
          new DreamMessage(DreamStatus.Ok, new DreamHeaders(headers), MimeType.JSON, payload)
 
-    let Auth payload = Json(payload, [| authPair |])
+    let Auth payload = Json(payload, [| authPair; githubApiVersion |])
 
     let sortByReleaseDate (branch : JsonValue) =
         let branchname = branch?name.AsString()
@@ -85,13 +86,13 @@ type t(owner, token, gatekeepers : Dictionary<string, seq<string>>) =
         mergePlug.Put(Json("{}", [| new KeyValuePair<_, _>("Authorization", "token " + token) |]))
 
     member this.WebHookExist repo publicUri =
-        let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
+        let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token); githubApiVersion |])
         let hooks = JsonValue.Parse(api.At("repos", owner, repo, "hooks").Get(auth).ToText()).AsArray()
         let isPullRequestEvent (events : JsonValue[]) = Seq.exists (fun (event : JsonValue) -> event.AsString() = "pull_request") events
         hooks |> Seq.exists (fun (hook : JsonValue) -> isPullRequestEvent(hook?events.AsArray()) && hook?name.AsString() = "web" && hook?config?url.AsString() = publicUri)
         
     member this.CreateWebHook repo (publicUri : string) =
-        let createHook = Json(String.Format("""{{ "name" : "web", "events" : ["pull_request"], "config" : {{ "url" : "{0}", "content_type" : "json" }} }}""",  publicUri), [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
+        let createHook = Json(String.Format("""{{ "name" : "web", "events" : ["pull_request"], "config" : {{ "url" : "{0}", "content_type" : "json" }} }}""",  publicUri), [| new KeyValuePair<_, _>("Authorization", "token " + token); githubApiVersion |])
         api.At("repos", owner, repo, "hooks").Post(createHook)
 
     member this.CreateWebHooks repos (publicUri : string) =
@@ -105,7 +106,7 @@ type t(owner, token, gatekeepers : Dictionary<string, seq<string>>) =
         
     member this.GetOpenPullRequests (repo : string) =
         logger.DebugFormat("Getting the open pull requests for repo '{0}'", repo)
-        let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token) |])
+        let auth = Json("", [| new KeyValuePair<_, _>("Authorization", "token " + token); githubApiVersion |])
         JsonValue.Parse(api.At("repos", owner, repo, "pulls").Get(auth).ToText()).AsArray()
 
     member this.ProcessPullRequests pollAction prs =
