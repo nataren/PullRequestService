@@ -32,9 +32,10 @@ open System.Globalization
 
 type PullRequest = MindTouch.PullRequest.t
 open log4net
-type t(owner, token) =
+type t(owner, token, gatekeepers : Dictionary<string, seq<string>>) =
     let owner = owner
     let token = token
+    let gatekeepers = gatekeepers
     let logger = LogManager.GetLogger typedefof<t>
     let authPair = new KeyValuePair<_, _>("Authorization", "token " + token)
     let api = Plug.New(new XUri("https://api.github.com"))
@@ -53,6 +54,20 @@ type t(owner, token) =
         let tag = String.Format("""{{ "ref" : "refs/tags/{0}", "sha" : "{1}" }}""", String.Format("{0}{1}", prefix, branch?name.AsString()), branch?commit?sha.AsString())
         logger.DebugFormat("Builded payload for tag '{0}'", tag)
         tag
+
+    let GetGatekeepers (repoName : string) : seq<string> =
+        let repo = repoName.ToLowerInvariant()
+        logger.DebugFormat("Getting gatekeepers for {0}", repo)
+        if gatekeepers.ContainsKey (repo) then
+            gatekeepers.[repo]
+        else Seq.singleton ""
+    
+    let AddGatekeepersToComment (message : string)  (repoName : string) : string =
+        logger.DebugFormat("Adding gatekeepers to comment to repo {0}", repoName)
+        let gateKeepers = GetGatekeepers repoName
+        String.Format(
+            message,
+            String.Join(" or ", Seq.map (fun gatekeeper -> "@" + gatekeeper) gateKeepers))
     
     member this.CommentOnPullRequest (commentUri : XUri) (comment : String) =
         logger.DebugFormat("Going to create a comment at '{0}'", commentUri)
@@ -120,9 +135,9 @@ type t(owner, token) =
         | PullRequest.AutoMergeable uri -> this.MergePullRequest uri
         | PullRequest.UnknownMergeability uri -> this.PollPullRequest uri pollAction
         | PullRequest.OpenedNotLinkedToYouTrackIssue (prUri, commentsUri) -> this.CommentOnPullRequest commentsUri "This just opened pull request is not bound to a YouTrack issue, it will be closed" |> ignore; this.ClosePullRequest prUri
-        | PullRequest.ReopenedNotLinkedToYouTrackIssue uri -> this.CommentOnPullRequest uri "This just *reopened* pull request is not bound to a YouTrack issue, it will be ignored but human intervention is required" |> ignore; DreamMessage.Ok()
+        | PullRequest.ReopenedNotLinkedToYouTrackIssue (repoName, uri) -> this.CommentOnPullRequest uri (AddGatekeepersToComment "This just *reopened* pull request is not bound to a YouTrack issue, it will be ignored but {0} intervention is required" repoName) |> ignore; DreamMessage.Ok()
         | PullRequest.Merged mergedPrMetadata -> mergedPrHandler mergedPrMetadata |> ignore; DreamMessage.Ok()
-        | PullRequest.Skip uri -> this.CommentOnPullRequest uri "This pull request is going to be ignored, human intervention required" |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since is not targeting an open branch or the master branch").ToString())
+        | PullRequest.Skip (repoName, uri) -> this.CommentOnPullRequest uri (AddGatekeepersToComment "This pull request is going to be ignored, {0} intervention required" repoName) |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since is not targeting an open branch or the master branch").ToString())
 
     member this.GetPullRequestDetails (prUri : XUri) =
         logger.DebugFormat("Will fetch the details of pull request '{0}'", prUri.ToString())

@@ -35,9 +35,9 @@ type t =
 | AutoMergeable of XUri
 | UnknownMergeability of XUri
 | OpenedNotLinkedToYouTrackIssue of XUri * XUri
-| ReopenedNotLinkedToYouTrackIssue of XUri
+| ReopenedNotLinkedToYouTrackIssue of string * XUri
 | Merged of MindTouch.YouTrack.MergedPullRequestMetadata
-| Skip of XUri
+| Skip of string * XUri
 
 let logger = LogManager.GetLogger typedefof<t>
 
@@ -105,13 +105,14 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
     let state = pr?state
     let commentsUri = GetCommentsUrl pr
     let notValidInYouTrack = fun() -> not << youtrackValidator << GetTicketNames <| branchName
+    let repoName = pr?head?repo?name.AsString()
     logger.DebugFormat("PR: {0}, target: {1}, state: {2}", prUri.ToString(), branchName, state)
 
     // Clasify the kind of pull request we are getting
     if IsInvalidPullRequest pr then
         Invalid (prUri, commentsUri)
     else if IsOpenPullRequest state && reopenedPullRequest pr && notValidInYouTrack() then
-        ReopenedNotLinkedToYouTrackIssue commentsUri
+        ReopenedNotLinkedToYouTrackIssue(repoName, commentsUri)
     else if IsOpenPullRequest state && notValidInYouTrack() then
         OpenedNotLinkedToYouTrackIssue (prUri, commentsUri)
     else if IsMergedPullRequest pr then Merged {
@@ -125,7 +126,7 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
     else if IsAutoMergeablePullRequest pr then
         AutoMergeable prUri
     else
-        Skip commentsUri
+        Skip(repoName, commentsUri)
 
 let DeterminePullRequestTypeFromEvent reopenedPullRequest youtrackValidator youtrackIssuesFilter prEvent =
     let pr = prEvent?pull_request
@@ -133,7 +134,7 @@ let DeterminePullRequestTypeFromEvent reopenedPullRequest youtrackValidator yout
     let notValidInYouTrack = fun() -> not << youtrackValidator << GetTicketNames <| branchName
     let commentsUri = GetCommentsUrl pr
     if IsReopenedPullRequestEvent prEvent && notValidInYouTrack() then
-        ReopenedNotLinkedToYouTrackIssue commentsUri
+        ReopenedNotLinkedToYouTrackIssue(pr?head?repo?name.AsString(), commentsUri)
     else
         DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter pr
 
