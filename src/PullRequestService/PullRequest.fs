@@ -58,12 +58,6 @@ let IsMergedPullRequest pr =
 
 let matches (str : string) strs =
     Seq.exists (fun s -> str.EqualsInvariantIgnoreCase(s)) strs
-     
-let IsOpenPullRequestEvent (evnt : JsonValue) =
-    let action = evnt?action
-    let state = evnt?pull_request?state
-    action <> JsonValue.Null && action.AsString().EqualsInvariantIgnoreCase("opened") &&
-        state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("open")
    
 let IsOpenPullRequest (state : JsonValue) =
     let isOpen = state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("open")
@@ -123,7 +117,7 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
         Release = getTargetBranchDate pr }
     else if IsUnknownMergeabilityPullRequest pr then
         UnknownMergeability prUri
-    else if IsAutoMergeablePullRequest pr then
+    else if (IsOpenPullRequest state || reopenedPullRequest pr) && IsAutoMergeablePullRequest pr then
         AutoMergeable prUri
     else
         Skip(repoName, commentsUri)
