@@ -139,6 +139,7 @@ type t(owner, token, gatekeepers : Dictionary<string, seq<string>>) =
         | PullRequest.ReopenedNotLinkedToYouTrackIssue (repoName, uri) -> this.CommentOnPullRequest uri (AddGatekeepersToComment "This just *reopened* pull request is not bound to a YouTrack issue, it will be ignored but {0} intervention is required" repoName) |> ignore; DreamMessage.Ok()
         | PullRequest.Merged mergedPrMetadata -> mergedPrHandler mergedPrMetadata |> ignore; DreamMessage.Ok()
         | PullRequest.Skip (repoName, uri) -> this.CommentOnPullRequest uri (AddGatekeepersToComment "This pull request is going to be ignored, {0} intervention required" repoName) |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since is not targeting an open branch or the master branch").ToString())
+        | PullRequest.Closed uri -> DreamMessage.Ok(MimeType.JSON, String.Format("Pull Request '{0}' was closed", uri.ToString()))
 
     member this.GetPullRequestDetails (prUri : XUri) =
         logger.DebugFormat("Will fetch the details of pull request '{0}'", prUri.ToString())

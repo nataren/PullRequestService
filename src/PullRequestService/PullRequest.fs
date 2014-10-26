@@ -38,6 +38,7 @@ type t =
 | ReopenedNotLinkedToYouTrackIssue of string * XUri
 | Merged of MindTouch.YouTrack.MergedPullRequestMetadata
 | Skip of string * XUri
+| Closed of XUri
 
 let logger = LogManager.GetLogger typedefof<t>
 
@@ -69,6 +70,9 @@ let IsReopenedPullRequestEvent (evnt : JsonValue) =
     let state = evnt?pull_request?state
     action <> JsonValue.Null && action.AsString().EqualsInvariantIgnoreCase("reopened") &&
         state <> JsonValue.Null && state.AsString().EqualsInvariantIgnoreCase("open")
+
+let IsClosedPullRequest (state : JsonValue) =
+    state <> JsonValue.Null && "closed".EqualsInvariantIgnoreCase(state.AsString())
 
 let IsInvalidPullRequest pr =
     pr?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
@@ -103,7 +107,9 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
     logger.DebugFormat("PR: {0}, target: {1}, state: {2}", prUri.ToString(), branchName, state)
 
     // Clasify the kind of pull request we are getting
-    if IsInvalidPullRequest pr then
+    if IsClosedPullRequest state then
+        Closed prUri
+    else if IsInvalidPullRequest pr then
         Invalid (prUri, commentsUri)
     else if IsOpenPullRequest state && reopenedPullRequest pr && notValidInYouTrack() then
         ReopenedNotLinkedToYouTrackIssue(repoName, commentsUri)
