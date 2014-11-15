@@ -47,6 +47,7 @@ type Agent<'T> = MailboxProcessor<'T>
 [<DreamServiceConfig("github.owner", "string", "The owner of the repos we want to watch")>]
 [<DreamServiceConfig("github.repos", "string", "Comma separated list of repos to watch")>]
 [<DreamServiceConfig("github.gatekeepers", "xml?", "Top level XML for repo/user nested elements that describe the gatekeepers")>]
+[<DreamServiceConfig("github.frozen.branches", "xml?", "Top level XML for repo/branch nested elements that describe explicitly frozen branches")>]
 [<DreamServiceConfig("public.uri", "string", "The notify end-point's full public URI to use to communicate with this service")>]
 [<DreamServiceConfig("merge.retries", "int", "The number of times we should retry merging a pull request in case there was an error")>]
 [<DreamServiceConfig("merge.ttl", "int", "The amount of time (in milliseconds) that we need to wait before we try to merge the pull request again")>]
@@ -58,7 +59,6 @@ type Agent<'T> = MailboxProcessor<'T>
 [<DreamServiceConfig("youtrack.password", "string", "The YouTrack password")>]
 [<DreamServiceConfig("archive.branches.ttl", "int", "How frequently we prune the branches. The value is in milliseconds, it defaults to everyday")>]
 [<DreamServiceConfig("archive.branches.keep", "int", "The number of release branches that we need to keep around. Defaults to 4")>]
-[<DreamServiceConfig("frozen.branches", "xml?", "Top level XML for repo/branch nested elements that describe explicitly frozen branches")>]
 type PullRequestService() as self =
     inherit DreamService()
 
@@ -194,7 +194,7 @@ type PullRequestService() as self =
         mergeTTL <- TimeSpan.FromMilliseconds(mergeTtl.Value)
         mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityTtl.Value)
         gatekeepers <- GetGithubRepoToGateKeepersMapping config.["github.gatekeepers"]
-        frozenBranches <- GetFrozenBranchesMapping config.["frozen.branches"]
+        frozenBranches <- GetFrozenBranchesMapping config.["github.frozen.branches"]
         let github = MindTouch.Github.t(owner.Value, token.Value, gatekeepers)
 
         // Github repos
