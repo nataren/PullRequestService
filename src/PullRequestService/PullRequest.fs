@@ -39,6 +39,7 @@ type t =
 | Merged of MindTouch.YouTrack.MergedPullRequestMetadata
 | Skip of string * XUri
 | ClosedAndNotMerged of XUri
+| TargetsExplicitlyFrozenBranch of (string * XUri)
 
 let logger = LogManager.GetLogger typedefof<t>
 
@@ -74,6 +75,10 @@ let IsReopenedPullRequestEvent (evnt : JsonValue) =
 let IsClosedPullRequest (state : JsonValue) =
     state <> JsonValue.Null && "closed".EqualsInvariantIgnoreCase(state.AsString())
 
+let IsTargettingExplicitlyFrozenBranch (repo : string) (pr : JsonValue) isTargetingRepoFrozenBranch =
+    let targetBranch = pr?``base``?ref.AsString()
+    isTargetingRepoFrozenBranch repo targetBranch
+
 let IsInvalidPullRequest pr =
     pr?``base``?ref.AsString().EqualsInvariantIgnoreCase("master")
    
@@ -96,7 +101,7 @@ let GetTicketNames (branchName : string) =
 let GetCommentsUrl (pr : JsonValue) =
     new XUri(pr?comments_url.AsString())
 
-let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter pr =
+let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargettingExplicitlyFrozenBranch pr =
     let pullRequestUri = pr?url.AsString()
     let prUri = new XUri(pullRequestUri)
     let branchName = pr?head?ref.AsString()
@@ -111,10 +116,12 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
         ClosedAndNotMerged prUri
     else if IsInvalidPullRequest pr then
         Invalid (prUri, commentsUri)
-    else if IsOpenPullRequest state && reopenedPullRequest pr && notValidInYouTrack() then
-        ReopenedNotLinkedToYouTrackIssue(repoName, commentsUri)
     else if IsOpenPullRequest state && notValidInYouTrack() then
         OpenedNotLinkedToYouTrackIssue (prUri, commentsUri)
+    else if IsOpenPullRequest state && IsTargettingExplicitlyFrozenBranch repoName pr isTargettingExplicitlyFrozenBranch then
+        TargetsExplicitlyFrozenBranch (repoName, commentsUri)
+    else if IsOpenPullRequest state && reopenedPullRequest pr && notValidInYouTrack() then
+        ReopenedNotLinkedToYouTrackIssue(repoName, commentsUri)
     else if IsMergedPullRequest pr then Merged {
         HtmlUri = new XUri(pr?html_url.AsString())
         LinkedYouTrackIssues = branchName |> GetTicketNames |> youtrackIssuesFilter
@@ -128,7 +135,7 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
     else
         Skip(repoName, commentsUri)
 
-let DeterminePullRequestTypeFromEvent reopenedPullRequest youtrackValidator youtrackIssuesFilter prEvent =
+let DeterminePullRequestTypeFromEvent reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargetingRepoFrozenBranch prEvent =
     let pr = prEvent?pull_request
     let branchName = pr?head?ref.AsString()
     let notValidInYouTrack = fun() -> not << youtrackValidator << GetTicketNames <| branchName
@@ -136,7 +143,7 @@ let DeterminePullRequestTypeFromEvent reopenedPullRequest youtrackValidator yout
     if IsReopenedPullRequestEvent prEvent && notValidInYouTrack() then
         ReopenedNotLinkedToYouTrackIssue(pr?head?repo?name.AsString(), commentsUri)
     else
-        DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter pr
+        DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargetingRepoFrozenBranch pr
 
 
 
