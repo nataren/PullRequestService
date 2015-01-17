@@ -40,6 +40,7 @@ type t =
 | Skip of string * XUri
 | ClosedAndNotMerged of XUri
 | TargetsExplicitlyFrozenBranch of (string * XUri)
+| TargetsSpecificPurposeBranch of XUri
 
 let logger = LogManager.GetLogger typedefof<t>
 
@@ -75,6 +76,9 @@ let IsReopenedPullRequestEvent (evnt : JsonValue) =
 let IsClosedPullRequest (state : JsonValue) =
     state <> JsonValue.Null && "closed".EqualsInvariantIgnoreCase(state.AsString())
 
+let IsTargettingSpecificPurposeBranch (branchName : string) =
+    branchName <> null && branchName.ContainsInvariantIgnoreCase("_master")
+
 let IsTargettingExplicitlyFrozenBranch (repo : string) (pr : JsonValue) isTargetingRepoFrozenBranch =
     let targetBranch = pr?``base``?ref.AsString()
     isTargetingRepoFrozenBranch repo targetBranch
@@ -101,7 +105,7 @@ let GetTicketNames (branchName : string) =
 let GetCommentsUrl (pr : JsonValue) =
     new XUri(pr?comments_url.AsString())
 
-let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargettingExplicitlyFrozenBranch pr =
+let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargettingExplicitlyFrozenBranch pr : t =
     let pullRequestUri = pr?url.AsString()
     let prUri = new XUri(pullRequestUri)
     let branchName = pr?head?ref.AsString()
@@ -111,8 +115,10 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
     let repoName = pr?head?repo?name.AsString()
     logger.DebugFormat("PR: {0}, target: {1}, state: {2}", prUri.ToString(), branchName, state)
 
-    // Clasify the kind of pull request we are getting
-    if IsClosedPullRequest state && not (IsMergedPullRequest pr) then
+    // Classify the kind of pull request we are getting
+    if IsTargettingSpecificPurposeBranch branchName then
+        TargetsSpecificPurposeBranch prUri
+    else if IsClosedPullRequest state && not (IsMergedPullRequest pr) then
         ClosedAndNotMerged prUri
     else if IsInvalidPullRequest pr then
         Invalid (prUri, commentsUri)
