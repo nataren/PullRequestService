@@ -141,6 +141,7 @@ type t(owner, token, gatekeepers : Dictionary<string, seq<string>>) =
         | PullRequest.Skip (repoName, uri) -> this.CommentOnPullRequest uri (AddGatekeepersToComment "This pull request is going to be ignored, {0} intervention required" repoName) |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since is not targeting an open branch").ToString())
         | PullRequest.ClosedAndNotMerged uri -> DreamMessage.Ok(MimeType.JSON, String.Format("Pull Request '{0}' was closed and not merged", uri.ToString()))
         | PullRequest.TargetsExplicitlyFrozenBranch (repoName, uri) -> this.CommentOnPullRequest uri (AddGatekeepersToComment "This pull request targets an explicitly frozen branch, {0} intervention required" repoName) |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since it is targetting an explicitly frozen branch").ToString())
+        | PullRequest.TargetsSpecificPurposeBranch uri -> DreamMessage.Ok(MimeType.JSON, "PullRequest targets specific purpose branch, will ignore")
 
     member this.GetPullRequestDetails (prUri : XUri) =
         logger.DebugFormat("Will fetch the details of pull request '{0}'", prUri.ToString())
