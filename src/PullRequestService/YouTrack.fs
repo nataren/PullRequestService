@@ -69,7 +69,11 @@ type t(hostname : string, username, password, github2youtrackMapping : Map<strin
             | ex -> logger.DebugExceptionMethodCall(ex, "Error happened processing issue '{0}', '{1}'", issue, ex.Message))
 
     member this.VerifyIssue (issue : string) (prUri : XUri) (release : string) (comment : string) (author : string) =
-        let command = String.Format("In Release {0} S QA{1} State Verified", release, match github2youtrack.TryFind(author.ToLowerInvariant()) with | Some username -> " Assignee " + username | None -> "")
+        let stateCmd = if issue.StartsWithInvariantIgnoreCase("MTP-") then "S QA" else "State Verified"
+        let command = String.Format("In Release {0} {1} {2}",
+                        release,
+                        (match github2youtrack.TryFind(author.ToLowerInvariant()) with | Some username -> " Assignee " + username | None -> ""),
+                        stateCmd)
         let fullComment = String.Format("{0}\nPull Request: {1}\nAuthor: {2}", comment, prUri.ToString(), author)
         logger.DebugFormat("command = '{0}'", command)
         logger.DebugFormat("fullComment = '{0}'", fullComment)
