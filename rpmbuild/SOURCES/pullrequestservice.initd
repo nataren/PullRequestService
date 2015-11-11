@@ -24,11 +24,12 @@ LOG_STDOUT=${LOG_STDOUT:-/var/log/${NAME}/${NAME}-stdout.log}
 LOG_STDERR=${LOG_STDERR:-/var/log/${NAME}/${NAME}-stderr.log}
 MONO=${MONO:-/usr/bin/mono}
 MONO_OPTS=${MONO_OPTS:---debug}
-PR_EXE="/usr/share/${NAME}/bin/PullRequestService.exe"
+HOST_EXE=${HOST_EXE:-/usr/share/${NAME}/bin/mindtouch.host.exe}
+PR_CONFIG=${PR_CONFIG:-/etc/${NAME}/${NAME}.config}
 
 start() {
     echo -n $"Starting ${NAME}: "
-    daemon /usr/sbin/daemonize -a -p ${PID_FILE} -l ${LOCK_FILE} -u ${PR_USER} -e ${LOG_STDERR} -o ${LOG_STDOUT} ${MONO} "${MONO_OPTS} ${PR_EXE}"
+    daemon /usr/sbin/daemonize -a -p ${PID_FILE} -l ${LOCK_FILE} -u ${PR_USER} -e ${LOG_STDERR} -o ${LOG_STDOUT} ${MONO} "${MONO_OPTS} ${HOST_EXE} config ${PR_CONFIG}"
     RETVAL=$?
     echo
     [ ${RETVAL} -eq 0 ] && touch ${LOCK_FILE}

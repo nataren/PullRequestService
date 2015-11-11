@@ -5,4 +5,5 @@
 #LOG_STDERR=/var/log/pullrequestservice/pullrequestservice-stderr.log
 #MONO=/usr/bin/mono
 #MONO_OPTS="--debug"
-#PR_EXE=/usr/share/pullrequestservice/bin/PullRequestService.exe
+#HOST_EXE=/usr/share/pullrequestservice/bin/mindtouch.host.exe
+#PR_CONFIG=/etch/pullrequestservice/pullrequestservice.config
