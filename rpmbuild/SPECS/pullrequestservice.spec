@@ -78,6 +78,6 @@ fi
 %{_sysconfdir}/init.d/%{name}
 
 %changelog
-* Mon Nov 9 2014 PeteE <petee@mindtouch.com>
+* Mon Nov 9 2015 PeteE <petee@mindtouch.com>
  - initial packaging for pullrequestservice
 
