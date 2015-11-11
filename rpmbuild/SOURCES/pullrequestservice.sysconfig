@@ -1,0 +1,8 @@
+#PID_FILE=/var/run/pullrequestservice/pullrequestservice.pid
+#LOCK_FILE=/var/lock/subsys/pullrequestservice
+#PR_USER=pullrequestservice
+#LOG_STDOUT=/var/log/pullrequestservice/pullrequestservice-stdout.log
+#LOG_STDERR=/var/log/pullrequestservice/pullrequestservice-stderr.log
+#MONO=/usr/bin/mono
+#MONO_OPTS="--debug"
+#PR_EXE=/usr/share/pullrequestservice/bin/PullRequestService.exe
