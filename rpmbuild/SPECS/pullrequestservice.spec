@@ -13,7 +13,7 @@ Source3:	%{name}.config
 BuildRoot:	%(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 BuildArch:  noarch
 
-Requires:	daemonize, chkconfig, initscripts
+Requires:	daemonize, chkconfig, initscripts, fsharp, mono-complete
 Provides:	pullrequestservice
 AutoReqProv:	no
 
