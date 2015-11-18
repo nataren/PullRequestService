@@ -1,0 +1,9 @@
+#PID_FILE=/var/run/pullrequestservice/pullrequestservice.pid
+#LOCK_FILE=/var/lock/subsys/pullrequestservice
+#PR_USER=pullrequestservice
+#LOG_STDOUT=/var/log/pullrequestservice/pullrequestservice-stdout.log
+#LOG_STDERR=/var/log/pullrequestservice/pullrequestservice-stderr.log
+#MONO=/usr/bin/mono
+#MONO_OPTS="--debug"
+#HOST_EXE=/usr/share/pullrequestservice/bin/mindtouch.host.exe
+#PR_CONFIG=/etch/pullrequestservice/pullrequestservice.config
