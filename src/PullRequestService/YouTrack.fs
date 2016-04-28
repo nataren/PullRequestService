@@ -70,7 +70,7 @@ type t(hostname : string, username, password, github2youtrackMapping : Map<strin
 
     member this.VerifyIssue (issue : string) (prUri : XUri) (release : string) (comment : string) (author : string) =
         let stateCmd = if issue.StartsWithInvariantIgnoreCase("MTP-") then "S QA" else "State Verified"
-        let command = String.Format("In Release {0} {1} {2}",
+        let command = String.Format("add In Release {0} {1} {2}",
                         release,
                         (match github2youtrack.TryFind(author.ToLowerInvariant()) with | Some username -> " Assignee " + username | None -> ""),
                         stateCmd)
