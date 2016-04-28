@@ -46,7 +46,6 @@ type Agent<'T> = MailboxProcessor<'T>
 [<DreamServiceConfig("github.token", "string", "A Github's personal API access token")>]
 [<DreamServiceConfig("github.owner", "string", "The owner of the repos we want to watch")>]
 [<DreamServiceConfig("github.repos", "string", "Comma separated list of repos to watch")>]
-[<DreamServiceConfig("github.gatekeepers", "xml?", "Top level XML for repo/user nested elements that describe the gatekeepers")>]
 [<DreamServiceConfig("github.frozen.branches", "xml?", "Top level XML for repo/branch nested elements that describe explicitly frozen branches")>]
 [<DreamServiceConfig("public.uri", "string", "The notify end-point's full public URI to use to communicate with this service")>]
 [<DreamServiceConfig("merge.retries", "int", "The number of times we should retry merging a pull request in case there was an error")>]
@@ -66,7 +65,6 @@ type PullRequestService() as self =
     // Config keys values
     let mutable token = None
     let mutable owner = None
-    let mutable gatekeepers = new Dictionary<string, seq<string>>()
     let mutable frozenBranches = new Dictionary<string, seq<string>>()
     let mutable github2youtrack = Map.empty<string, string>
     let mutable youtrackHostname = None
@@ -91,7 +89,7 @@ type PullRequestService() as self =
                 let prUri, retry = args.Entry.Key, args.Entry.Value
                 if retry < mergeabilityRetries.Value then
                     try
-                        let github = MindTouch.Github.t(owner.Value, token.Value, gatekeepers)
+                        let github = MindTouch.Github.t(owner.Value, token.Value)
                         let youtrack = MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value, github2youtrack)
                         JsonValue.Parse(github.GetPullRequestDetails(prUri).ToText())
                         |> MindTouch.PullRequest.DeterminePullRequestType github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues (fun repo targetBranch -> frozenBranches.ContainsKey (repo.ToLowerInvariant()) && Seq.exists (fun branch -> targetBranch.EqualsInvariantIgnoreCase(branch)) frozenBranches.[repo.ToLowerInvariant()])
@@ -150,9 +148,6 @@ type PullRequestService() as self =
                 repo.[secondLevel.ToLowerInvariant()] |> Seq.map (fun user -> user.AsText.ToLowerInvariant()))
         repoMappings
 
-    let GetGithubRepoToGateKeepersMapping (config : XDoc) : Dictionary<string, seq<string>> =
-        GetRepoMappings config "user"
-
     let GetFrozenBranchesMapping (config : XDoc) : Dictionary<string, seq<string>> =
         GetRepoMappings config "branch"
     
@@ -193,9 +188,8 @@ type PullRequestService() as self =
         ValidateConfig "youtrack.password" youtrackPassword
         mergeTTL <- TimeSpan.FromMilliseconds(mergeTtl.Value)
         mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityTtl.Value)
-        gatekeepers <- GetGithubRepoToGateKeepersMapping config.["github.gatekeepers"]
         frozenBranches <- GetFrozenBranchesMapping config.["github.frozen.branches"]
-        let github = MindTouch.Github.t(owner.Value, token.Value, gatekeepers)
+        let github = MindTouch.Github.t(owner.Value, token.Value)
 
         // Github repos
         let allRepos = repos.Value.Split(',')
@@ -229,7 +223,7 @@ type PullRequestService() as self =
     member this.HandleGithubMessage (context : DreamContext) (request : DreamMessage) =
         let githubEvent = request.ToText()
         logger.DebugFormat("Payload: ({0})", githubEvent)
-        let github = MindTouch.Github.t(owner.Value, token.Value, gatekeepers)
+        let github = MindTouch.Github.t(owner.Value, token.Value)
         let youtrack = new MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value, github2youtrack)
         JsonValue.Parse(githubEvent)
         |> MindTouch.PullRequest.DeterminePullRequestTypeFromEvent github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues (fun repo targetBranch -> frozenBranches.ContainsKey (repo.ToLowerInvariant()) && Seq.exists (fun branch -> targetBranch.EqualsInvariantIgnoreCase(branch)) frozenBranches.[repo.ToLowerInvariant()])
