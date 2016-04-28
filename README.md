@@ -43,12 +43,6 @@ Create a file `pr.config` with the following content, and change the values appr
 				<github.token>{TOKEN}</github.token>
 				<github.owner>{OWNER}</github.owner>
 				<github.repos>{REPOS}</github.repos>
-				<github.gatekeepers>
-				  <repo name="{REPO_NAME}">
-				    <user>{USERNAME1}</user>
-				    <user>{USERNAME2}</user>
-				  </repo>
-				</github.gatekeepers>
                 <github.frozen.branches>
                     <repo name="{REPO_NAME}">
                         <branch>{BRANCH_NAME}</branch>

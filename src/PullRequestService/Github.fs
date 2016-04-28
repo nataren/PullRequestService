@@ -32,10 +32,10 @@ open System.Globalization
 
 type PullRequest = MindTouch.PullRequest.t
 open log4net
-type t(owner, token, gatekeepers : Dictionary<string, seq<string>>) =
+
+type t(owner, token) =
     let owner = owner
     let token = token
-    let gatekeepers = gatekeepers
     let logger = LogManager.GetLogger typedefof<t>
     let authPair = new KeyValuePair<_, _>("Authorization", "token " + token)
     let githubApiVersion = new KeyValuePair<_,_>("Accept", "application/vnd.github.v3+json")
@@ -55,20 +55,6 @@ type t(owner, token, gatekeepers : Dictionary<string, seq<string>>) =
         let tag = String.Format("""{{ "ref" : "refs/tags/{0}", "sha" : "{1}" }}""", String.Format("{0}{1}", prefix, branch?name.AsString()), branch?commit?sha.AsString())
         logger.DebugFormat("Builded payload for tag '{0}'", tag)
         tag
-
-    let GetGatekeepers (repoName : string) : seq<string> =
-        let repo = repoName.ToLowerInvariant()
-        logger.DebugFormat("Getting gatekeepers for {0}", repo)
-        if gatekeepers.ContainsKey (repo) then
-            gatekeepers.[repo]
-        else Seq.singleton ""
-    
-    let AddGatekeepersToComment (message : string)  (repoName : string) : string =
-        logger.DebugFormat("Adding gatekeepers to comment to repo {0}", repoName)
-        let gateKeepers = GetGatekeepers repoName
-        String.Format(
-            message,
-            String.Join(" or ", Seq.map (fun gatekeeper -> "@" + gatekeeper) gateKeepers))
     
     member this.CommentOnPullRequest (commentUri : XUri) (comment : String) =
         logger.DebugFormat("Going to create a comment at '{0}'", commentUri)
@@ -136,11 +122,11 @@ type t(owner, token, gatekeepers : Dictionary<string, seq<string>>) =
         | PullRequest.AutoMergeable uri -> this.MergePullRequest uri
         | PullRequest.UnknownMergeability uri -> this.PollPullRequest uri pollAction
         | PullRequest.OpenedNotLinkedToYouTrackIssue (prUri, commentsUri) -> this.CommentOnPullRequest commentsUri "This just opened pull request is not bound to a YouTrack issue, it will be closed" |> ignore; this.ClosePullRequest prUri
-        | PullRequest.ReopenedNotLinkedToYouTrackIssue (repoName, uri) -> this.CommentOnPullRequest uri (AddGatekeepersToComment "This just *reopened* pull request is not bound to a YouTrack issue, it will be ignored but {0} intervention is required" repoName) |> ignore; DreamMessage.Ok()
+        | PullRequest.ReopenedNotLinkedToYouTrackIssue (repoName, uri) -> this.CommentOnPullRequest uri "This just *reopened* pull request is not bound to a YouTrack issue, it will be ignored but contact your Technical Lead so it gets handled" |> ignore; DreamMessage.Ok()
         | PullRequest.Merged mergedPrMetadata -> mergedPrHandler mergedPrMetadata |> ignore; DreamMessage.Ok()
-        | PullRequest.Skip (repoName, uri) -> this.CommentOnPullRequest uri (AddGatekeepersToComment "This pull request is going to be ignored, {0} intervention required" repoName) |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since is not targeting an open branch").ToString())
+        | PullRequest.Skip (repoName, uri) -> this.CommentOnPullRequest uri "This pull request is going to be ignored, {0} intervention required" |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since is not targeting an open branch").ToString())
         | PullRequest.ClosedAndNotMerged uri -> DreamMessage.Ok(MimeType.JSON, String.Format("Pull Request '{0}' was closed and not merged", uri.ToString()))
-        | PullRequest.TargetsExplicitlyFrozenBranch (repoName, uri) -> this.CommentOnPullRequest uri (AddGatekeepersToComment "This pull request targets an explicitly frozen branch, {0} intervention required" repoName) |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since it is targetting an explicitly frozen branch").ToString())
+        | PullRequest.TargetsExplicitlyFrozenBranch (repoName, uri) -> this.CommentOnPullRequest uri "This pull request targets an explicitly frozen branch, contact your Technical Lead so it gets handled" |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since it is targetting an explicitly frozen branch").ToString())
         | PullRequest.TargetsSpecificPurposeBranch uri -> DreamMessage.Ok(MimeType.JSON, "PullRequest targets specific purpose branch, will ignore")
 
     member this.GetPullRequestDetails (prUri : XUri) =
