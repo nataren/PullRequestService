@@ -21,9 +21,28 @@
  *)
 
 [<RequireQualifiedAccess>]
-module MindTouch.DateUtils
-open System
-let DATE_PATTERN = "yyyyMMdd"
+module MindTouch.Domain
 
-let getBranchDate (branchname : string) =
-    DateTime.ParseExact(branchname.Substring(branchname.Length - DATE_PATTERN.Length), DATE_PATTERN, null)
+open log4net
+open MindTouch.Dream
+open System
+
+type MergedPullRequestMetadata = {
+    HtmlUri : XUri;
+    LinkedYouTrackIssues : seq<string>;
+    Author : String;
+    Message : String;
+    Release : DateTime
+}
+
+type PullRequest =
+| Invalid of XUri * XUri
+| AutoMergeable of XUri
+| UnknownMergeability of XUri
+| OpenedNotLinkedToYouTrackIssue of XUri * XUri
+| ReopenedNotLinkedToYouTrackIssue of string * XUri
+| Merged of MergedPullRequestMetadata
+| Skip of string * XUri
+| ClosedAndNotMerged of XUri
+| TargetsExplicitlyFrozenBranch of (string * XUri)
+| TargetsSpecificPurposeBranch of XUri

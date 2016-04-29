@@ -30,19 +30,9 @@ open FSharp.Data.Json
 open FSharp.Data.Json.Extensions
 open log4net
 
-type t =
-| Invalid of XUri * XUri
-| AutoMergeable of XUri
-| UnknownMergeability of XUri
-| OpenedNotLinkedToYouTrackIssue of XUri * XUri
-| ReopenedNotLinkedToYouTrackIssue of string * XUri
-| Merged of MindTouch.YouTrack.MergedPullRequestMetadata
-| Skip of string * XUri
-| ClosedAndNotMerged of XUri
-| TargetsExplicitlyFrozenBranch of (string * XUri)
-| TargetsSpecificPurposeBranch of XUri
+type PR = MindTouch.Domain.PullRequest
 
-let logger = LogManager.GetLogger typedefof<t>
+let logger = LogManager.GetLogger typedefof<PR>
 
 let IsMergeable pr =
     let mergeable = pr?mergeable
@@ -105,7 +95,7 @@ let GetTicketNames (branchName : string) =
 let GetCommentsUrl (pr : JsonValue) =
     new XUri(pr?comments_url.AsString())
 
-let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargettingExplicitlyFrozenBranch pr : t =
+let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargettingExplicitlyFrozenBranch pr : PR =
     let pullRequestUri = pr?url.AsString()
     let prUri = new XUri(pullRequestUri)
     let branchName = pr?head?ref.AsString()
@@ -117,29 +107,29 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
 
     // Classify the kind of pull request we are getting
     if IsTargettingSpecificPurposeBranch branchName then
-        TargetsSpecificPurposeBranch prUri
+        PR.TargetsSpecificPurposeBranch prUri
     else if IsClosedPullRequest state && not (IsMergedPullRequest pr) then
-        ClosedAndNotMerged prUri
+        PR.ClosedAndNotMerged prUri
     else if IsInvalidPullRequest pr then
-        Invalid (prUri, commentsUri)
+        PR.Invalid (prUri, commentsUri)
     else if IsOpenPullRequest state && notValidInYouTrack() then
-        OpenedNotLinkedToYouTrackIssue (prUri, commentsUri)
+        PR.OpenedNotLinkedToYouTrackIssue (prUri, commentsUri)
     else if IsOpenPullRequest state && IsTargettingExplicitlyFrozenBranch repoName pr isTargettingExplicitlyFrozenBranch then
-        TargetsExplicitlyFrozenBranch (repoName, commentsUri)
+        PR.TargetsExplicitlyFrozenBranch (repoName, commentsUri)
     else if IsOpenPullRequest state && reopenedPullRequest pr && notValidInYouTrack() then
-        ReopenedNotLinkedToYouTrackIssue(repoName, commentsUri)
-    else if IsMergedPullRequest pr then Merged {
+        PR.ReopenedNotLinkedToYouTrackIssue(repoName, commentsUri)
+    else if IsMergedPullRequest pr then PR.Merged {
         HtmlUri = new XUri(pr?html_url.AsString())
         LinkedYouTrackIssues = branchName |> GetTicketNames |> youtrackIssuesFilter
         Author = (pr?user?login.AsString());
         Message = (pr?body.AsString());
         Release = getTargetBranchDate pr }
     else if IsUnknownMergeabilityPullRequest pr then
-        UnknownMergeability prUri
+        PR.UnknownMergeability prUri
     else if (IsOpenPullRequest state || reopenedPullRequest pr) && IsAutoMergeablePullRequest pr then
-        AutoMergeable prUri
+        PR.AutoMergeable prUri
     else
-        Skip(repoName, commentsUri)
+        PR.Skip(repoName, commentsUri)
 
 let DeterminePullRequestTypeFromEvent reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargetingRepoFrozenBranch prEvent =
     let pr = prEvent?pull_request
@@ -147,10 +137,20 @@ let DeterminePullRequestTypeFromEvent reopenedPullRequest youtrackValidator yout
     let notValidInYouTrack = fun() -> not << youtrackValidator << GetTicketNames <| branchName
     let commentsUri = GetCommentsUrl pr
     if IsReopenedPullRequestEvent prEvent && notValidInYouTrack() then
-        ReopenedNotLinkedToYouTrackIssue(pr?head?repo?name.AsString(), commentsUri)
+        PR.ReopenedNotLinkedToYouTrackIssue(pr?head?repo?name.AsString(), commentsUri)
     else
         DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargetingRepoFrozenBranch pr
 
+let ProcessMergedPullRequest (github : MindTouch.Github.t) (youtrack : MindTouch.YouTrack.t) (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) : Unit =
 
+        // Update the YouTrack ticket
+        try
+            youtrack.ProcessMergedPullRequest prMetadata |> ignore
+        with
+        | ex -> Console.WriteLine(ex)
 
-
+        // Propagate the changes forward
+        try
+            github.ProcessMergedPullRequest prMetadata
+        with
+        | ex -> Console.WriteLine(ex)

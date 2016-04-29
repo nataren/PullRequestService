@@ -227,7 +227,7 @@ type PullRequestService() as self =
         let youtrack = new MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value, github2youtrack)
         JsonValue.Parse(githubEvent)
         |> MindTouch.PullRequest.DeterminePullRequestTypeFromEvent github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues (fun repo targetBranch -> frozenBranches.ContainsKey (repo.ToLowerInvariant()) && Seq.exists (fun branch -> targetBranch.EqualsInvariantIgnoreCase(branch)) frozenBranches.[repo.ToLowerInvariant()])
-        |> github.ProcessPullRequestType (fun prUri -> pullRequestPollingAgent.Post(prUri)) youtrack.ProcessMergedPullRequest
+        |> github.ProcessPullRequestType (fun prUri -> pullRequestPollingAgent.Post(prUri)) ((MindTouch.PullRequest.ProcessMergedPullRequest github youtrack))
 
     [<DreamFeature("GET:status", "Check the service's status")>]
     member this.GetStatus (context : DreamContext) (request : DreamMessage) =
