@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2012
-Project("{4925A630-B079-445d-BCD4-3A9C94FE9307}") = "PullRequestService", "PullRequestService\PullRequestService.fsproj", "{614C828C-4F77-48FC-BC30-FD3D9D34F04B}"
+# Visual Studio 14
+VisualStudioVersion = 14.0.24720.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "PullRequestService", "PullRequestService\PullRequestService.fsproj", "{614C828C-4F77-48FC-BC30-FD3D9D34F04B}"
 EndProject
-Project("{4925A630-B079-445d-BCD4-3A9C94FE9307}") = "PullRequestServiceTest", "PullRequestServiceTest\PullRequestServiceTest.fsproj", "{92A449EB-9B7C-4F63-AB49-332C1D868709}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "PullRequestServiceTest", "PullRequestServiceTest\PullRequestServiceTest.fsproj", "{92A449EB-9B7C-4F63-AB49-332C1D868709}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -30,11 +32,11 @@ Global
 		{92A449EB-9B7C-4F63-AB49-332C1D868709}.Release|x86.ActiveCfg = Release|Any CPU
 		{92A449EB-9B7C-4F63-AB49-332C1D868709}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
 	GlobalSection(MonoDevelopProperties) = preSolution
 		StartupItem = PullRequestService\PullRequestService.fsproj
 		outputpath = bin
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
 	EndGlobalSection
 EndGlobal
