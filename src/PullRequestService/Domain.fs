@@ -26,13 +26,16 @@ module MindTouch.Domain
 open log4net
 open MindTouch.Dream
 open System
+open FSharp.Data.Json
 
 type MergedPullRequestMetadata = {
+    Repo : String;
     HtmlUri : XUri;
     LinkedYouTrackIssues : seq<string>;
     Author : String;
     Message : String;
-    Release : DateTime
+    Release : DateTime;
+    Head: JsonValue;
 }
 
 type PullRequest =

@@ -237,8 +237,38 @@ type t(owner, token) =
                 |> Some
 
     member this.MergeBranch (repo : string) (sourceBranch : string) (targetBranch : string) (commitMessage : string) =
-        let mergePayload = String.Format("""{{ "base": "{0}", "head": "{1}", "commit_message": "{2}" }}""", targetBranch, targetBranch, commitMessage)
+        let mergePayload = String.Format("""{{ "base": "{0}", "head": "{1}", "commit_message": "{2}" }}""", targetBranch, sourceBranch, commitMessage)
         api.At("repos", owner, repo, "merges").Post(Auth mergePayload)
 
     member this.ProcessMergedPullRequest (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) =
-        ()
+        let branches = this.GetBranches prMetadata.Repo
+        let sourceBranch = prMetadata.Release
+        let sortedBranches =
+            branches
+            |> Seq.choose (fun s ->
+                               let branchname = s?name.AsString() in
+                               logger.DebugFormat("branchname {0}", branchname)
+                               let mutable result = DateTime.MinValue
+                               let valid = DateTime.TryParseExact(branchname.Substring 8, MindTouch.DateUtils.DATE_PATTERN, null, DateTimeStyles.None, ref result) in
+                                   if valid then Some(branchname, result) else None)
+            |> Seq.sortBy (fun (_, date) -> date)
+            |> Seq.toArray
+
+        // The commit we need to propagate
+        let commit = prMetadata.Head?sha.AsString()
+        let autoMergingMessage = String.Format("Merging change from {0}", prMetadata.Head?label.AsString())
+
+        // Only merge to master if it is a hotfix
+        if DateTime.UtcNow > sourceBranch.ToSafeUniversalTime() then
+
+            // TODO(cesarn): Handle errors
+            this.MergeBranch prMetadata.Repo commit "master" autoMergingMessage |> ignore
+
+        // Merge the change to newer branches than ours
+        sortedBranches 
+        |> Seq.iter (fun (branch, date) ->
+            if date.ToSafeUniversalTime() > sourceBranch.ToSafeUniversalTime() then
+                
+                // TODO(cesarn): handle errors
+                this.MergeBranch prMetadata.Repo commit branch autoMergingMessage |> ignore
+        )

@@ -25,6 +25,8 @@ open log4net
 open MindTouch.Dream
 open System.Collections.Generic
 open System
+open FSharp.Data.Json
+open FSharp.Data.Json.Extensions
 
 type t(hostname : string, username, password, github2youtrackMapping : Map<string, string>) =
     let github2youtrack = github2youtrackMapping

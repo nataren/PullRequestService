@@ -119,11 +119,13 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
     else if IsOpenPullRequest state && reopenedPullRequest pr && notValidInYouTrack() then
         PR.ReopenedNotLinkedToYouTrackIssue(repoName, commentsUri)
     else if IsMergedPullRequest pr then PR.Merged {
+        Repo = repoName
         HtmlUri = new XUri(pr?html_url.AsString())
         LinkedYouTrackIssues = branchName |> GetTicketNames |> youtrackIssuesFilter
         Author = (pr?user?login.AsString());
         Message = (pr?body.AsString());
-        Release = getTargetBranchDate pr }
+        Release = getTargetBranchDate pr;
+        Head = pr?head }
     else if IsUnknownMergeabilityPullRequest pr then
         PR.UnknownMergeability prUri
     else if (IsOpenPullRequest state || reopenedPullRequest pr) && IsAutoMergeablePullRequest pr then
