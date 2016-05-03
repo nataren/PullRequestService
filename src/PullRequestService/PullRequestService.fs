@@ -93,7 +93,7 @@ type PullRequestService() as self =
                         let youtrack = MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value, github2youtrack)
                         JsonValue.Parse(github.GetPullRequestDetails(prUri).ToText())
                         |> MindTouch.PullRequest.DeterminePullRequestType github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues (fun repo targetBranch -> frozenBranches.ContainsKey (repo.ToLowerInvariant()) && Seq.exists (fun branch -> targetBranch.EqualsInvariantIgnoreCase(branch)) frozenBranches.[repo.ToLowerInvariant()])
-                        |> github.ProcessPullRequestType (fun prUri -> failwith(String.Format("Status for '{0}' is still undetermined", prUri))) youtrack.ProcessMergedPullRequest
+                        |> github.ProcessPullRequestType (fun prUri -> failwith(String.Format("Status for '{0}' is still undetermined", prUri))) (MindTouch.PullRequest.ProcessMergedPullRequest github youtrack)
                         |> ignore
                     with
                         | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed || e.Response.Status = DreamStatus.Unauthorized || e.Response.Status = DreamStatus.Forbidden ->

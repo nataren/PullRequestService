@@ -145,7 +145,7 @@ let ProcessMergedPullRequest (github : MindTouch.Github.t) (youtrack : MindTouch
 
         // Update the YouTrack ticket
         try
-            youtrack.ProcessMergedPullRequest prMetadata |> ignore
+            youtrack.ProcessMergedPullRequest prMetadata
         with
         | ex -> Console.WriteLine(ex)
 
