@@ -241,7 +241,7 @@ type t(owner, token) =
         try
             api.At("repos", owner, repo, "merges").Post(Auth mergePayload)
         with
-            | ex -> logger.ErrorExceptionMethodCall(ex, "Error found when trying to merge branches on repo '{0}', sourceBranch '{1}', targetBranch '{2}'", repo, sourceBranch, targetBranch); DreamMessage.InternalError("Error merging branches")
+            | ex -> logger.ErrorExceptionFormat(ex, "Error found when trying to merge branches on repo '{0}', sourceBranch '{1}', targetBranch '{2}': '{3}'", repo, sourceBranch, targetBranch, ex.Message); DreamMessage.InternalError("Error merging branches")
 
     member this.ProcessMergedPullRequest (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) =
         let branches = this.GetBranches prMetadata.Repo
