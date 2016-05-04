@@ -252,7 +252,7 @@ type t(owner, token) =
                                let branchname = s?name.AsString() in
                                logger.DebugFormat("branchname {0}", branchname)
                                let mutable result = DateTime.MinValue
-                               let valid = DateTime.TryParseExact(branchname.Substring 8, MindTouch.DateUtils.DATE_PATTERN, null, DateTimeStyles.None, ref result) in
+                               let (valid, result) = DateTime.TryParseExact(branchname.Substring 8, MindTouch.DateUtils.DATE_PATTERN, null, DateTimeStyles.None) in
                                    if valid then Some(branchname, result) else None)
             |> Seq.sortBy (fun (_, date) -> date)
             |> Seq.toArray
