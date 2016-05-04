@@ -236,12 +236,12 @@ type t(owner, token) =
                 |> Seq.toArray
                 |> Some
 
-    member this.MergeBranch (repo : string) (sourceBranch : string) (targetBranch : string) (commitMessage : string) =
-        let mergePayload = String.Format("""{{ "base": "{0}", "head": "{1}", "commit_message": "{2}" }}""", targetBranch, sourceBranch, commitMessage)
+    member this.MergeBranch (repo : string) (source : string) (target : string) (commitMessage : string) =
+        let mergePayload = String.Format("""{{ "base": "{0}", "head": "{1}", "commit_message": "{2}" }}""", target, source, commitMessage)
         try
             api.At("repos", owner, repo, "merges").Post(Auth mergePayload)
         with
-            | ex -> logger.ErrorExceptionFormat(ex, "Error found when trying to merge branches on repo '{0}', sourceBranch '{1}', targetBranch '{2}': '{3}'", repo, sourceBranch, targetBranch, ex.Message); DreamMessage.InternalError("Error merging branches")
+            | ex -> logger.ErrorExceptionFormat(ex, "Error found when trying to merge branches on repo '{0}', source '{1}', target '{2}': '{3}'", repo, source, target, ex.Message); DreamMessage.InternalError(String.Format("Error merging branches: {0}", ex.Message))
 
     member this.ProcessMergedPullRequest (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) =
         let branches = this.GetBranches prMetadata.Repo
@@ -270,8 +270,8 @@ type t(owner, token) =
         // Merge the change to newer branches than ours
         sortedBranches 
         |> Seq.iter (fun (branch, date) ->
-            logger.DebugFormat("targetBranch '{0}'\t sourceBranch '{1}'", date.ToSafeUniversalTime(), sourceBranch.ToSafeUniversalTime())
-            if date.ToSafeUniversalTime() > sourceBranch.ToSafeUniversalTime() then      
+            if date.ToSafeUniversalTime() > sourceBranch.ToSafeUniversalTime() then 
+                logger.DebugFormat("target '{0}'\t targetDate \t source '{1}'", branch, date.ToSafeUniversalTime(), sourceBranch.ToSafeUniversalTime())
                 this.MergeBranch prMetadata.Repo commit branch (autoMergingMessage + branch) |> ignore else // TODO(cesarn): handle errors
                 logger.DebugFormat("On repo '{0}', won't merge commit '{1}' to target branch '{2}' from '{3}' with message '{4}', ", prMetadata.Repo, commit, branch, sourceBranch.ToSafeUniversalTime(), autoMergingMessage + branch)
         )
