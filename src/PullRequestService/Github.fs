@@ -238,7 +238,10 @@ type t(owner, token) =
 
     member this.MergeBranch (repo : string) (sourceBranch : string) (targetBranch : string) (commitMessage : string) =
         let mergePayload = String.Format("""{{ "base": "{0}", "head": "{1}", "commit_message": "{2}" }}""", targetBranch, sourceBranch, commitMessage)
-        api.At("repos", owner, repo, "merges").Post(Auth mergePayload)
+        try
+            api.At("repos", owner, repo, "merges").Post(Auth mergePayload)
+        with
+            | ex -> logger.ErrorExceptionMethodCall(ex, "Error found when trying to merge branches on repo '{0}', sourceBranch '{1}', targetBranch '{2}'", repo, sourceBranch, targetBranch); DreamMessage.InternalError("Error merging branches")
 
     member this.ProcessMergedPullRequest (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) =
         let branches = this.GetBranches prMetadata.Repo
@@ -270,5 +273,6 @@ type t(owner, token) =
             if date.ToSafeUniversalTime() > sourceBranch.ToSafeUniversalTime() then
                 
                 // TODO(cesarn): handle errors
-                this.MergeBranch prMetadata.Repo commit branch autoMergingMessage |> ignore
+                this.MergeBranch prMetadata.Repo commit branch autoMergingMessage |> ignore else
+                logger.DebugFormat("On repo '{0}', won't merge commit '{1}' to target branch '{2}' with message '{3}', ", prMetadata.Repo, commit, branch, autoMergingMessage)
         )
