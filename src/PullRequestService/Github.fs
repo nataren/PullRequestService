@@ -259,7 +259,7 @@ type t(owner, token) =
 
         // The commit we need to propagate
         let commit = prMetadata.Head?sha.AsString()
-        let autoMergingMessage = String.Format("Merging change from {0}", prMetadata.Head?label.AsString())
+        let autoMergingMessage = String.Format("Auto-merging change from {0} to {1}", prMetadata.Head?label.AsString())
 
         // Only merge to master if it is a hotfix
         if DateTime.UtcNow > sourceBranch.ToSafeUniversalTime() then
@@ -273,5 +273,5 @@ type t(owner, token) =
             logger.DebugFormat("targetBranch '{0}'\t sourceBranch '{1}'", date.ToSafeUniversalTime(), sourceBranch.ToSafeUniversalTime())
             if date.ToSafeUniversalTime() > sourceBranch.ToSafeUniversalTime() then      
                 this.MergeBranch prMetadata.Repo commit branch autoMergingMessage |> ignore else // TODO(cesarn): handle errors
-                logger.DebugFormat("On repo '{0}', won't merge commit '{1}' to target branch '{2}' from '{3}' with message '{4}', ", prMetadata.Repo, commit, branch, sourceBranch.ToSafeUniversalTime(), autoMergingMessage)
+                logger.DebugFormat("On repo '{0}', won't merge commit '{1}' to target branch '{2}' from '{3}' with message '{4}', ", prMetadata.Repo, commit, branch, sourceBranch.ToSafeUniversalTime(), String.Format(autoMergingMessage, branch))
         )
