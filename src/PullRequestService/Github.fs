@@ -270,9 +270,8 @@ type t(owner, token) =
         // Merge the change to newer branches than ours
         sortedBranches 
         |> Seq.iter (fun (branch, date) ->
-            if date.ToSafeUniversalTime() > sourceBranch.ToSafeUniversalTime() then
-                
-                // TODO(cesarn): handle errors
-                this.MergeBranch prMetadata.Repo commit branch autoMergingMessage |> ignore else
-                logger.DebugFormat("On repo '{0}', won't merge commit '{1}' to target branch '{2}' with message '{3}', ", prMetadata.Repo, commit, branch, autoMergingMessage)
+            logger.DebugFormat("sourceBranch '{0}'\t targetBranch '{1}'", branch, sourceBranch.ToString("yyyyMMdd"))
+            if date.ToSafeUniversalTime() > sourceBranch.ToSafeUniversalTime() then      
+                this.MergeBranch prMetadata.Repo commit branch autoMergingMessage |> ignore else // TODO(cesarn): handle errors
+                logger.DebugFormat("On repo '{0}', won't merge commit '{1}' to target branch '{2}' from '{3}' with message '{4}', ", prMetadata.Repo, commit, branch, sourceBranch.ToSafeUniversalTime(), autoMergingMessage)
         )
