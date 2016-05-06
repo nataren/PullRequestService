@@ -258,7 +258,7 @@ type t(owner, token) =
             |> Seq.toArray
 
         // The commit we need to propagate
-        let commit = prMetadata.Head?sha.AsString()
+        let commit = if String.IsNullOrEmpty prMetadata.MergeCommitSHA then prMetadata.Head?sha.AsString() else prMetadata.MergeCommitSHA
         let autoMergingMessage = String.Format("Auto-merging change from {0} to ", prMetadata.Head?label.AsString())
 
         // Only merge to master if it is a hotfix
