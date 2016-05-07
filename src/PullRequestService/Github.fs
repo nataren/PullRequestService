@@ -245,13 +245,11 @@ type t(owner, token) =
 
     member this.ProcessMergedPullRequest (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) =
         let branches = this.GetBranches prMetadata.Repo
-        let sourceBranch = prMetadata.Release
+        let release = prMetadata.Release.ToSafeUniversalTime()
         let sortedBranches =
             branches
             |> Seq.choose (fun s ->
                                let branchname = s?name.AsString() in
-                               logger.DebugFormat("branchname {0}", branchname)
-                               let mutable result = DateTime.MinValue
                                let (valid, result) = DateTime.TryParseExact(branchname.Substring 8, MindTouch.DateUtils.DATE_PATTERN, null, DateTimeStyles.None) in
                                    if valid then Some(branchname, result) else None)
             |> Seq.sortBy (fun (_, date) -> date)
@@ -262,7 +260,7 @@ type t(owner, token) =
         let autoMergingMessage = String.Format("Auto-merging change from {0} to ", prMetadata.Head?label.AsString())
 
         // Only merge to master if it is a hotfix
-        if DateTime.UtcNow > sourceBranch.ToSafeUniversalTime() then
+        if DateTime.UtcNow > release then
 
             // TODO(cesarn): Handle errors
             this.MergeBranch prMetadata.Repo commit "master" autoMergingMessage |> ignore
@@ -270,8 +268,7 @@ type t(owner, token) =
         // Merge the change to newer branches than ours
         sortedBranches 
         |> Seq.iter (fun (branch, date) ->
-            if date.ToSafeUniversalTime() > sourceBranch.ToSafeUniversalTime() then 
-                logger.DebugFormat("target '{0}'\t targetDate \t source '{1}'", branch, date.ToSafeUniversalTime(), sourceBranch.ToSafeUniversalTime())
-                this.MergeBranch prMetadata.Repo commit branch (autoMergingMessage + branch) |> ignore else // TODO(cesarn): handle errors
-                logger.DebugFormat("On repo '{0}', won't merge commit '{1}' to target branch '{2}' from '{3}' with message '{4}', ", prMetadata.Repo, commit, branch, sourceBranch.ToSafeUniversalTime(), autoMergingMessage + branch)
+            if date.ToSafeUniversalTime() > release then 
+                logger.DebugFormat("Merging to repo '{0}', commit '{1}' from release '{3}', on branch '{2}'", prMetadata.Repo, commit, branch, release.ToString(MindTouch.DateUtils.DATE_PATTERN))
+                this.MergeBranch prMetadata.Repo commit branch (autoMergingMessage + branch) |> ignore
         )
