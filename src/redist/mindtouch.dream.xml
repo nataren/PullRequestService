@@ -1,0 +1,726 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>mindtouch.sqs</name>
+    </assembly>
+    <members>
+        <member name="T:MindTouch.Sqs.InMemorySqsNullQueueException">
+            <summary>
+            Exception thrown by InMemorySqsClient whent a queue name cannot be resolved.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.InMemorySqsNullQueueException.#ctor(System.String)">
+            <summary>
+            Constructor for creating an instance.
+            </summary>
+            <param name="message">Exception message.</param>
+        </member>
+        <member name="T:MindTouch.Sqs.ISqsPollingClient">
+            <summary>
+            Interface for a polling SQS provider.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.ISqsPollingClient.Listen(MindTouch.Sqs.SqsPollingClientSettings)">
+            <summary>
+            Start listening for SQS messages with the provided settings.
+            </summary>
+            <param name="settings">Polling settings.</param>
+            <returns>Object to dispose listener when no longer needed.</returns>
+        </member>
+        <member name="T:MindTouch.Sqs.SqsDelayedSendClient">
+            <summary>
+            Class for enqueuing messages asynchronously for batched delivery into a specific queue.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsDelayedSendClient.#ctor(MindTouch.Sqs.ISqsClient,MindTouch.Tasking.TaskTimerFactory)">
+            <summary>
+            Constructor for creating an instance.
+            </summary>
+            <param name="client">ISqsClient instance.</param>
+            <param name="timerFactory">TimeFactory instance.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsDelayedSendClient.EnqueueMessage(MindTouch.Sqs.SqsQueueName,System.String)">
+            <summary>
+            Enqueue message for batched, asynchronous delivery.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messageBody">Message body.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsDelayedSendClient.GetEnqueueMessageCallback(MindTouch.Sqs.SqsQueueName)">
+            <summary>
+            Get delegate for enqueuing messages asynchronously to named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <returns>Delegate for enqueuing message asynchronously.</returns>
+        </member>
+        <member name="T:MindTouch.Sqs.SqsException">
+            <summary>
+            Wrapper for exceptions throw my SQS methods.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsException.#ctor(System.String,System.Exception)">
+            <summary>
+            Constructor for creating an instance.
+            </summary>
+            <param name="message">Exception message.</param>
+            <param name="e">Inner exception.</param>
+        </member>
+        <member name="T:MindTouch.Sqs.SqsMessageId">
+            <summary>
+            Value type for SQS message ID.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessageId.op_Equality(MindTouch.Sqs.SqsMessageId,MindTouch.Sqs.SqsMessageId)">
+            <summary>
+            Equality operator.
+            </summary>
+            <param name="a">First SQS message ID.</param>
+            <param name="b">Second SQS message ID.</param>
+            <returns>True if equal.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessageId.op_Inequality(MindTouch.Sqs.SqsMessageId,MindTouch.Sqs.SqsMessageId)">
+            <summary>
+            Inequality operator.
+            </summary>
+            <param name="a">First SQS message ID.</param>
+            <param name="b">Second SQS message ID.</param>
+            <returns>True if not equal.</returns>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsMessageId.Value">
+            <summary>
+            Value of the SQS message ID.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessageId.#ctor(System.String)">
+            <summary>
+            Constructor for creating an instance.
+            </summary>
+            <param name="messageId">Message ID.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessageId.ToString">
+            <summary>
+            Convert SQS message ID to string.
+            </summary>
+            <returns>String value.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessageId.GetHashCode">
+            <summary>
+            Get hash code of SQS message ID.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessageId.Equals(MindTouch.Sqs.SqsMessageId)">
+            <summary>
+            Compare SQS message IDs.
+            </summary>
+            <param name="messageId">Other SQS message ID.</param>
+            <returns>True if equal.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessageId.Equals(System.Object)">
+            <summary>
+            Compare SQS message ID to other object.
+            </summary>
+            <param name="obj">Other object.</param>
+            <returns>True if equal.</returns>
+        </member>
+        <member name="T:MindTouch.Sqs.SqsQueueDelayedSendClient">
+            <summary>
+            Class for enqueuing messages asynchronously for batched delivery.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsQueueDelayedSendClient.QueueName">
+            <summary>
+            Queue name.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsQueueDelayedSendClient.#ctor(MindTouch.Sqs.ISqsClient,MindTouch.Sqs.SqsQueueName,MindTouch.Tasking.TaskTimerFactory)">
+            <summary>
+            Constructor for creating an instance.
+            </summary>
+            <param name="client">ISqsClient instance.</param>
+            <param name="queueName">Queue name.</param>
+            <param name="timerFactory">TimerFactory instance.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsQueueDelayedSendClient.EnqueueMessage(System.String)">
+            <summary>
+            Enqueue message for batched, asynchronous delivery.
+            </summary>
+            <param name="messageBody">Message body.</param>
+        </member>
+        <member name="T:MindTouch.Sqs.SqsUtils">
+            <summary>
+            SQS constants.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsUtils.MAX_NUMBER_OF_MESSAGES_TO_FETCH">
+            <summary>
+            Max number of messages that can be fetched from SQS at once.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsUtils.MAX_NUMBER_OF_BATCH_DELETE_MESSAGES">
+            <summary>
+            Max number of message that can be deleted from SQS at once.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsUtils.MAX_NUMBER_OF_BATCH_SEND_MESSAGES">
+            <summary>
+            Max number of message that can be sent to SQS at once.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsUtils.MAX_LONG_POLL_WAIT_TIME">
+            <summary>
+            Max time-span that long-poll can wait for messages from SQS.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsUtils.DEFAULT_WAIT_TIME_ON_ERROR">
+            <summary>
+            Default time-span to wait between attempts to read message from SQS.
+            </summary>
+        </member>
+        <member name="T:MindTouch.Sqs.InMemorySqsClient">
+            <summary>
+            An in-memory variation of the ISqsClient interface. Intended for testing in non-cloud environments.
+            </summary>
+        </member>
+        <member name="T:MindTouch.Sqs.ISqsClient">
+            <summary>
+            Interface for Simple Queue Service (SQS) provider.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.ISqsClient.ReceiveMessages(MindTouch.Sqs.SqsQueueName,System.TimeSpan,System.UInt32)">
+            <summary>
+            Receive zero or more messages from name queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="waitTimeSeconds">Max amount of time to wait until this method returns.</param>
+            <param name="maxNumberOfMessages">Max number of messages to request.</param>
+            <returns>Enumeration of received messages.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.ISqsClient.DeleteMessage(MindTouch.Sqs.SqsQueueName,MindTouch.Sqs.SqsMessageReceipt)">
+            <summary>
+            Delete single message from named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messageReceipt">Message receipt.</param>
+            <returns>True if message was deleted.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.ISqsClient.DeleteMessages(MindTouch.Sqs.SqsQueueName,System.Collections.Generic.IEnumerable{MindTouch.Sqs.SqsMessage})">
+            <summary>
+            Delete messages from named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messages">Enumeration of messages to delete.</param>
+            <returns>Enumeration of messages that failed to delete.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.ISqsClient.SendMessage(MindTouch.Sqs.SqsQueueName,System.String,System.TimeSpan)">
+            <summary>
+            Send message on named queue with a visibility delay.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messageBody">Message body.</param>
+            <param name="delay">Time to wait until the message becomes visible.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.ISqsClient.SendMessage(MindTouch.Sqs.SqsQueueName,System.String)">
+            <summary>
+            Send message on named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messageBody">Message body.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.ISqsClient.SendMessages(MindTouch.Sqs.SqsQueueName,System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+            Send one or more message to a named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messageBodies">Enumeration of message bodies.</param>
+            <returns>Enumeration of message bodies that failed to send.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.ISqsClient.CreateQueue(MindTouch.Sqs.SqsQueueName)">
+            <summary>
+            Create a new named queue and gets its URI.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <returns>True if the named queue was created.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.ISqsClient.DeleteQueue(MindTouch.Sqs.SqsQueueName)">
+            <summary>
+            Delete a named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <returns>True if the named queue was deleted</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.InMemorySqsClient.DeleteMessages(MindTouch.Sqs.SqsQueueName,System.Collections.Generic.IEnumerable{MindTouch.Sqs.SqsMessage})">
+            <summary>
+            Delete messages from named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messages">Enumeration of messages to delete.</param>
+            <returns>Enumeration of messages that failed to delete.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.InMemorySqsClient.ReceiveMessages(MindTouch.Sqs.SqsQueueName,System.TimeSpan,System.UInt32)">
+            <summary>
+            Receive zero or more messages from name queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="waitTimeSeconds">Max amount of time to wait until this method returns.</param>
+            <param name="maxNumberOfMessages">Max number of messages to request.</param>
+            <returns>Enumeration of received messages.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.InMemorySqsClient.DeleteMessage(MindTouch.Sqs.SqsQueueName,MindTouch.Sqs.SqsMessageReceipt)">
+            <summary>
+            Delete single message from named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messageReceipt">Message receipt.</param>
+            <returns>True if message was deleted.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.InMemorySqsClient.ClearQueue(MindTouch.Sqs.SqsQueueName)">
+            <summary>
+            Removed all messages from named queue.
+            </summary>
+            <param name="queueName">Queue name</param>
+        </member>
+        <member name="M:MindTouch.Sqs.InMemorySqsClient.SendMessage(MindTouch.Sqs.SqsQueueName,System.String,System.TimeSpan)">
+            <summary>
+            Send message on named queue with a visibility delay.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messageBody">Message body.</param>
+            <param name="delay">Time to wait until the message becomes visible.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.InMemorySqsClient.SendMessage(MindTouch.Sqs.SqsQueueName,System.String)">
+            <summary>
+            Send message on named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messageBody">Message body.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.InMemorySqsClient.SendMessages(MindTouch.Sqs.SqsQueueName,System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+            Send one or more message to a named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messageBodies">Enumeration of message bodies.</param>
+            <returns>Enumeration of message bodies that failed to send.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.InMemorySqsClient.CreateQueue(MindTouch.Sqs.SqsQueueName)">
+            <summary>
+            Create a new named queue and gets its URI.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <returns>True if the named queue was created.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.InMemorySqsClient.DeleteQueue(MindTouch.Sqs.SqsQueueName)">
+            <summary>
+            Delete a named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <returns>True if the named queue was deleted</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.InMemorySqsClient.InspectQueue(MindTouch.Sqs.SqsQueueName)">
+            <summary>
+            Get enumeration of all messages that are currently held by the in-memory named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <returns>Enumeration of messages.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.InMemorySqsClient.ListQueues(System.String)">
+            <summary>
+            Get enumeration of all in-memory queue names that start with a prefix (optiopnal).
+            </summary>
+            <param name="prefix">Prefix to match on. Can be NULL.</param>
+            <returns>Enumeration of queue names.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.InMemorySqsClient.Dispose">
+            <summary>
+            Dispose of ISqsClient.
+            </summary>
+        </member>
+        <member name="P:MindTouch.Sqs.InMemorySqsClient.Instance">
+            <summary>
+            Access globally shared in-memory queuing client.
+            </summary>
+        </member>
+        <member name="P:MindTouch.Sqs.InMemorySqsClient.IsDisposed">
+            <summary>
+            Returns true if instance is disposed.
+            </summary>
+        </member>
+        <member name="T:MindTouch.Sqs.SqsClient">
+            <summary>
+            Implementation of ISqsClient for AWS SQS.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsClient.#ctor(MindTouch.Sqs.SqsClientConfig)">
+            <summary>
+            Constructor for creating an instance.
+            </summary>
+            <param name="sqsClientConfig">Client configuration.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsClient.ReceiveMessages(MindTouch.Sqs.SqsQueueName,System.TimeSpan,System.UInt32)">
+            <summary>
+            Receive zero or more messages from name queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="waitTimeSeconds">Max amount of time to wait until this method returns.</param>
+            <param name="maxNumberOfMessages">Max number of messages to request.</param>
+            <returns>Enumeration of received messages.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsClient.DeleteMessage(MindTouch.Sqs.SqsQueueName,MindTouch.Sqs.SqsMessageReceipt)">
+            <summary>
+            Delete single message from named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messageReceipt">Message receipt.</param>
+            <returns>True if message was deleted.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsClient.DeleteMessages(MindTouch.Sqs.SqsQueueName,System.Collections.Generic.IEnumerable{MindTouch.Sqs.SqsMessage})">
+            <summary>
+            Delete messages from named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messages">Enumeration of messages to delete.</param>
+            <returns>Enumeration of messages that failed to delete.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsClient.SendMessage(MindTouch.Sqs.SqsQueueName,System.String)">
+            <summary>
+            Send message on named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messageBody">Message body.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsClient.SendMessage(MindTouch.Sqs.SqsQueueName,System.String,System.TimeSpan)">
+            <summary>
+            Send message on named queue with a visibility delay.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messageBody">Message body.</param>
+            <param name="delay">Time to wait until the message becomes visible.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsClient.SendMessages(MindTouch.Sqs.SqsQueueName,System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+            Send one or more message to a named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="messageBodies">Enumeration of message bodies.</param>
+            <returns>Enumeration of message bodies that failed to send.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsClient.CreateQueue(MindTouch.Sqs.SqsQueueName)">
+            <summary>
+            Create a new named queue and gets its URI.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <returns>True if the named queue was created.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsClient.DeleteQueue(MindTouch.Sqs.SqsQueueName)">
+            <summary>
+            Delete a named queue.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <returns>True if the named queue was deleted</returns>
+        </member>
+        <member name="T:MindTouch.Sqs.SqsClientConfig">
+            <summary>
+            Class for configuring the SQS client.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsClientConfig.From(MindTouch.Xml.XDoc)">
+            <summary>
+            Initialize SqsClientConfig instance from an XDoc instance.
+            </summary>
+            <param name="config"></param>
+            <returns></returns>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsClientConfig.PrivateKey">
+            <summary>
+            Private AWS key.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsClientConfig.PublicKey">
+            <summary>
+            Public AWS Key.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsClientConfig.AccountId">
+            <summary>
+            AWS account ID.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsClientConfig.ProxyHost">
+            <summary>
+            Proxy host if any.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsClientConfig.ProxyPort">
+            <summary>
+            Proxy port if any.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsClientConfig.Endpoint">
+            <summary>
+            Region-specific endpoint.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsClientConfig.#ctor(System.String,System.String,System.String,System.String,System.Boolean,System.String,System.Nullable{System.Int32})">
+            <summary>
+            Constructor for creating an instance.
+            </summary>
+            <param name="privateKey">Private AWS key.</param>
+            <param name="publicKey">Public AWS key.</param>
+            <param name="accountId">AWS account ID.</param>
+            <param name="endpoint">Region name or custom SQS endpoint to use.</param>
+            <param name="secure">Boolean indicating if HTTPS should be used.</param>
+            <param name="proxyHost">The proxy host if any.</param>
+            <param name="proxyPort">The proxy port if any.</param>
+        </member>
+        <member name="T:MindTouch.Sqs.SqsPollingClient">
+            <summary>
+            SQS polling client for ISqsClient.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsPollingClient.#ctor(MindTouch.Sqs.ISqsClient)">
+            <summary>
+            Constructor for creating an instance.
+            </summary>
+            <param name="client">ISqsClient to use.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsPollingClient.Listen(MindTouch.Sqs.SqsPollingClientSettings)">
+            <summary>
+            Start listening for SQS messages with the provided settings.
+            </summary>
+            <param name="settings">Polling settings.</param>
+            <returns>Object to dispose listener when no longer needed.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsPollingClient.Dispose">
+            <summary>
+            Dispose of all listeners.
+            </summary>
+        </member>
+        <member name="T:MindTouch.Sqs.SqsPollingClientSettings">
+            <summary>
+            SqsPollingClient listener settings.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsPollingClientSettings.QueueName">
+            <summary>
+            Queue name to listen on.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsPollingClientSettings.Callback">
+            <summary>
+            Callback for received SQS messages.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsPollingClientSettings.LongPollInterval">
+            <summary>
+            Max amount of time to wait for SQS message to arrive.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsPollingClientSettings.MaxNumberOfMessages">
+            <summary>
+            Max number of SQS messages to request.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsPollingClientSettings.WaitTimeOnError">
+            <summary>
+            Amount of time to wait until trying again to listen after an error occurred.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsPollingClientSettings.#ctor(MindTouch.Sqs.SqsQueueName,System.Action{System.Collections.Generic.IEnumerable{MindTouch.Sqs.SqsMessage}},System.TimeSpan,System.UInt32,System.TimeSpan)">
+            <summary>
+            Constructor for creating an instance.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="callback">Callback for received SQS messages.</param>
+            <param name="longPollInterval">Max amount of time to wait for SQS message to arrive.</param>
+            <param name="maxNumberOfMessages">Max number of SQS messages to request.</param>
+            <param name="waitTimeOnError">Amount of time to wait until trying again to listen after an error occurred.</param>
+        </member>
+        <member name="T:MindTouch.Sqs.SqsMessage">
+            <summary>
+            SQS wrapper.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsMessage.MessageId">
+            <summary>
+            SQS message ID.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsMessage.MessageReceipt">
+            <summary>
+            SQS message receipt. Used for deleting message later.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsMessage.Body">
+            <summary>
+            SQS message body.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessage.#ctor(MindTouch.Sqs.SqsMessageId,MindTouch.Sqs.SqsMessageReceipt,System.String)">
+            <summary>
+            Constructor for creating an instance.
+            </summary>
+            <param name="messageId">Message ID.</param>
+            <param name="messageReceipt">Message receipt.</param>
+            <param name="body">Message body.</param>
+        </member>
+        <member name="T:MindTouch.Sqs.SqsQueueClient">
+            <summary>
+            Class for working with named queues.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsQueueClient.QueueName">
+            <summary>
+            Queue name.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsQueueClient.#ctor(MindTouch.Sqs.SqsQueueName,MindTouch.Sqs.ISqsClient)">
+            <summary>
+            Constructor for creating an instance.
+            </summary>
+            <param name="queueName">Queue name.</param>
+            <param name="client">ISqsClient instance.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsQueueClient.ReceiveMessages(System.TimeSpan,System.UInt32)">
+            <summary>
+            
+            Receive zero or more messages.
+            </summary>
+            <param name="waitTimeSeconds">Max amount of time to wait until this method returns.</param>
+            <param name="maxNumberOfMessages">Max number of messages to request.</param>
+            <returns>Enumeration of received messages.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsQueueClient.DeleteMessage(MindTouch.Sqs.SqsMessageReceipt)">
+            <summary>
+            Delete single message.
+            </summary>
+            <param name="messageReceipt">Message receipt.</param>
+            <returns>True if message was deleted.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsQueueClient.DeleteMessages(System.Collections.Generic.IEnumerable{MindTouch.Sqs.SqsMessage})">
+            <summary>
+            Delete messages.
+            </summary>
+            <param name="messages">Enumeration of messages to delete.</param>
+            <returns>Enumeration of messages that failed to delete.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsQueueClient.SendMessage(System.String,System.TimeSpan)">
+            <summary>
+            Send message with a visibility delay.
+            </summary>
+            <param name="messageBody">Message body.</param>
+            <param name="delay">Time to wait until the message becomes visible.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsQueueClient.SendMessage(System.String)">
+            <summary>
+            Send message.
+            </summary>
+            <param name="messageBody">Message body.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsQueueClient.CreateQueue">
+            <summary>
+            Create the named queue and gets its URI.
+            </summary>
+            <returns>True if the named queue was created.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsQueueClient.DeleteQueue">
+            <summary>
+            Delete the named queue.
+            </summary>
+            <returns>True if the named queue was deleted</returns>
+        </member>
+        <member name="T:MindTouch.Sqs.SqsQueueName">
+            <summary>
+            Value type for SQS queue name.
+            </summary>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsQueueName.Value">
+            <summary>
+            Value of the SQS message ID.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsQueueName.#ctor(System.String)">
+            <summary>
+            Constructor for creating an instance.
+            </summary>
+            <param name="queueName">Queue name.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsQueueName.ToString">
+            <summary>
+            Convert SQS queue name to string.
+            </summary>
+            <returns>String value.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsQueueName.GetHashCode">
+            <summary>
+            Get hash code of SQS queue name.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsQueueName.Equals(System.Object)">
+            <summary>
+            Compare SQS queue names to other object.
+            </summary>
+            <param name="obj">Other object.</param>
+            <returns>True if equal.</returns>
+        </member>
+        <member name="T:MindTouch.Sqs.SqsMessageReceipt">
+            <summary>
+            Value type for SQS message receipt.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessageReceipt.op_Equality(MindTouch.Sqs.SqsMessageReceipt,MindTouch.Sqs.SqsMessageReceipt)">
+            <summary>
+            Equality operator.
+            </summary>
+            <param name="a">First SQS message receipt.</param>
+            <param name="b">Second SQS message receipt.</param>
+            <returns>True if equal.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessageReceipt.op_Inequality(MindTouch.Sqs.SqsMessageReceipt,MindTouch.Sqs.SqsMessageReceipt)">
+            <summary>
+            Inequality operator.
+            </summary>
+            <param name="a">First SQS message receipt.</param>
+            <param name="b">Second SQS message receipt.</param>
+            <returns>True if not equal.</returns>
+        </member>
+        <member name="F:MindTouch.Sqs.SqsMessageReceipt.Value">
+            <summary>
+            Value of the SQS message ID.
+            </summary>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessageReceipt.#ctor(System.String)">
+            <summary>
+            Constructor for creating an instance.
+            </summary>
+            <param name="messageReceipt">Message receipt.</param>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessageReceipt.ToString">
+            <summary>
+            Convert SQS message receipt to string.
+            </summary>
+            <returns>String value.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessageReceipt.GetHashCode">
+            <summary>
+            Get hash code of SQS message receipt.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessageReceipt.Equals(MindTouch.Sqs.SqsMessageReceipt)">
+            <summary>
+            Compare SQS message receipts.
+            </summary>
+            <param name="messageReceipt">Other SQS message receipt.</param>
+            <returns>True if equal.</returns>
+        </member>
+        <member name="M:MindTouch.Sqs.SqsMessageReceipt.Equals(System.Object)">
+            <summary>
+            Compare SQS message receipt to other object.
+            </summary>
+            <param name="obj">Other object.</param>
+            <returns>True if equal.</returns>
+        </member>
+    </members>
+</doc>
