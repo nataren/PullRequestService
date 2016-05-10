@@ -34,6 +34,13 @@ open log4net
 
 type PR = MindTouch.Domain.PullRequest
 
+type MergeException(repo : string, source : string, target : string, commitMessage : string) =
+    inherit Exception()
+    let repo = repo
+    let source = source
+    let target = target
+    let commitMessage = commitMessage
+
 type t(owner, token) =
     let owner = owner
     let token = token
@@ -241,7 +248,9 @@ type t(owner, token) =
         try
             api.At("repos", owner, repo, "merges").Post(Auth mergePayload)
         with
-            | ex -> logger.ErrorExceptionFormat(ex, "Error found when trying to merge branches on repo '{0}', source '{1}', target '{2}': '{3}'", repo, source, target, ex.Message); DreamMessage.InternalError(String.Format("Error merging branches: {0}", ex.Message))
+            | ex ->
+                logger.ErrorExceptionFormat(ex, "Error found when trying to merge branches on repo '{0}', source '{1}', target '{2}': '{3}'", repo, source, target, ex.Message)
+                raise(new MergeException(repo, source, target, commitMessage))
 
     member this.ProcessMergedPullRequest (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) =
         let branches = this.GetBranches prMetadata.Repo
@@ -261,8 +270,6 @@ type t(owner, token) =
 
         // Only merge to master if it is a hotfix
         if DateTime.UtcNow > release then
-
-            // TODO(cesarn): Handle errors
             this.MergeBranch prMetadata.Repo commit "master" autoMergingMessage |> ignore
 
         // Merge the change to newer branches than ours

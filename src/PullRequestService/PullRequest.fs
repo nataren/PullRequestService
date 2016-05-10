@@ -144,7 +144,7 @@ let DeterminePullRequestTypeFromEvent reopenedPullRequest youtrackValidator yout
     else
         DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargetingRepoFrozenBranch pr
 
-let ProcessMergedPullRequest (github : MindTouch.Github.t) (youtrack : MindTouch.YouTrack.t) (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) : Unit =
+let ProcessMergedPullRequest (email : MindTouch.Email.t) (github : MindTouch.Github.t) (youtrack : MindTouch.YouTrack.t) (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) : Unit =
 
         // Update the YouTrack ticket
         try
