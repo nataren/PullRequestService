@@ -23,6 +23,7 @@
 [<RequireQualifiedAccess>]
 module MindTouch.PullRequest
 open System
+open System.Text
 open Microsoft.FSharp.Collections
 
 open MindTouch.Dream
@@ -164,20 +165,20 @@ let ProcessMergedPullRequest (fromEmail : string) (toEmail : string) (email : Mi
             github.ProcessMergedPullRequest prMetadata
             loop <- false
         with
-        | :? DreamResponseException as ex ->
+        | :? MindTouch.Github.MergeException as ex ->
             logger.ErrorFormat("HTTP error during merge operation: {0}", ex.Message)
-            if ex.Response.Status = DreamStatus.Conflict then
-                let subject = "Error while processing merged pull request"
-                let textBody = ex.Message
-                let htmlBody = ex.Message
-                let resp = email.SendEmail(
-                                    fromEmail,
-                                    toEmail,
-                                    subject,
-                                    textBody,
-                                    htmlBody,
-                                    Seq.ofList [])
-                let emailSent = resp.HttpStatusCode = Net.HttpStatusCode.OK
-                if not emailSent then
-                    logger.ErrorFormat("Could not email from '{0}' to '{1}' about merge conflict: '{2}'", fromEmail, toEmail, textBody, resp.ToString())
+            let subject = "PullRequestService merge error, " + GlobalClock.UtcNow.ToString("f")
+            let message = String.Format("Error processing merged pull request\n Repo='{0}'\nSource='{1}'\nTarget='{2}'\nCommitMessage='{3}'", ex.Repo, ex.Source_, ex.Target, ex.CommitMessage)
+            let textBody = String.Format("{0}\n\n{1}\n\n", subject, message)
+            let htmlBody = String.Format("<html><body><h1>{0}</h1><h2>{1}</h2></body></html>", subject, message)
+            let resp = email.SendEmail(
+                                fromEmail,
+                                toEmail,
+                                subject,
+                                textBody.ToString(),
+                                htmlBody.ToString(),
+                                Seq.ofList [])
+            let emailSent = resp.HttpStatusCode = Net.HttpStatusCode.OK
+            if not emailSent then
+                logger.ErrorFormat("Could not email from '{0}' to '{1}' about merge conflict: '{2}'", fromEmail, toEmail, textBody, resp.ToString())
          | ex -> logger.ErrorFormat("Unexpected error while processing merged operation: {0}", ex.Message)

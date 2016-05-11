@@ -36,10 +36,10 @@ type PR = MindTouch.Domain.PullRequest
 
 type MergeException(repo : string, source : string, target : string, commitMessage : string) =
     inherit Exception()
-    let repo = repo
-    let source = source
-    let target = target
-    let commitMessage = commitMessage
+    member this.Repo = repo
+    member this.Source_ = source
+    member this.Target = target
+    member this.CommitMessage = commitMessage
 
 type t(owner, token) =
     let owner = owner
@@ -248,9 +248,12 @@ type t(owner, token) =
         try
             api.At("repos", owner, repo, "merges").Post(Auth mergePayload)
         with
-            | ex ->
+            | :? DreamResponseException as ex  ->
                 logger.ErrorExceptionFormat(ex, "Error found when trying to merge branches on repo '{0}', source '{1}', target '{2}': '{3}'", repo, source, target, ex.Message)
-                raise(new MergeException(repo, source, target, commitMessage))
+                if ex.Response.Status = DreamStatus.Conflict then
+                    raise(new MergeException(repo, source, target, commitMessage))
+                else
+                    raise ex
 
     member this.ProcessMergedPullRequest (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) =
         let branches = this.GetBranches prMetadata.Repo
@@ -270,7 +273,7 @@ type t(owner, token) =
 
         // Only merge to master if it is a hotfix
         if DateTime.UtcNow > release then
-            this.MergeBranch prMetadata.Repo commit "master" autoMergingMessage |> ignore
+            this.MergeBranch prMetadata.Repo commit "master" (autoMergingMessage + "master") |> ignore
 
         // Merge the change to newer branches than ours
         sortedBranches 
