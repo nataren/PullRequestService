@@ -23,6 +23,7 @@
 [<RequireQualifiedAccess>]
 module MindTouch.PullRequest
 open System
+open Microsoft.FSharp.Collections
 
 open MindTouch.Dream
 
@@ -33,6 +34,7 @@ open log4net
 type PR = MindTouch.Domain.PullRequest
 
 let logger = LogManager.GetLogger typedefof<PR>
+let RETRY_COUNT = 10
 
 let IsMergeable pr =
     let mergeable = pr?mergeable
@@ -144,16 +146,38 @@ let DeterminePullRequestTypeFromEvent reopenedPullRequest youtrackValidator yout
     else
         DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargetingRepoFrozenBranch pr
 
-let ProcessMergedPullRequest (email : MindTouch.Email.t) (github : MindTouch.Github.t) (youtrack : MindTouch.YouTrack.t) (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) : Unit =
+let ProcessMergedPullRequest (fromEmail : string) (toEmail : string) (email : MindTouch.Email.t) (github : MindTouch.Github.t) (youtrack : MindTouch.YouTrack.t) (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) : Unit =
 
-        // Update the YouTrack ticket
-        try
-            youtrack.ProcessMergedPullRequest prMetadata
-        with
-        | ex -> Console.WriteLine(ex)
+    // Update the YouTrack ticket
+    try
+        youtrack.ProcessMergedPullRequest prMetadata
+    with
+    | ex -> logger.ErrorFormat("Error processing youtrack part of pull request: '{0}'", ex.Message)
 
-        // Propagate the changes forward
+    // Propagate the changes forward
+    let mutable loop = true
+    let mutable i = 0
+    while loop do
+        i <- i + 1
+        loop <- i < RETRY_COUNT
         try
             github.ProcessMergedPullRequest prMetadata
+            loop <- false
         with
-        | ex -> Console.WriteLine(ex)
+        | :? DreamResponseException as ex ->
+            logger.ErrorFormat("HTTP error during merge operation: {0}", ex.Message)
+            if ex.Response.Status = DreamStatus.Conflict then
+                let subject = "Error while processing merged pull request"
+                let textBody = ex.Message
+                let htmlBody = ex.Message
+                let resp = email.SendEmail(
+                                    fromEmail,
+                                    toEmail,
+                                    subject,
+                                    textBody,
+                                    htmlBody,
+                                    Seq.ofList [])
+                let emailSent = resp.HttpStatusCode = Net.HttpStatusCode.OK
+                if not emailSent then
+                    logger.ErrorFormat("Could not email from '{0}' to '{1}' about merge conflict: '{2}'", fromEmail, toEmail, textBody, resp.ToString())
+         | ex -> logger.ErrorFormat("Unexpected error while processing merged operation: {0}", ex.Message)

@@ -60,7 +60,8 @@ type t(hostname : string, username, password, github2youtrackMapping : Map<strin
             try
                 this.VerifyIssue issue mergedPrMetadata.HtmlUri (mergedPrMetadata.Release.ToString("yyyyMMdd")) mergedPrMetadata.Message mergedPrMetadata.Author |> ignore
             with
-            | ex -> logger.DebugExceptionMethodCall(ex, "Error happened processing issue '{0}', '{1}'", issue, ex.Message))
+            | ex ->
+                logger.DebugExceptionMethodCall(ex, "Error happened processing issue '{0}', '{1}'", issue, ex.Message))
         
     member this.VerifyIssue (issue : string) (prUri : XUri) (release : string) (comment : string) (author : string) =
         let stateCmd = if issue.StartsWithInvariantIgnoreCase("MTP-") then "S QA" else "State Verified"

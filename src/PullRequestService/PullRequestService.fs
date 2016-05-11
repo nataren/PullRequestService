@@ -75,6 +75,8 @@ type PullRequestService() as self =
     let mutable mergeabilityRetries = None
     let mutable mergeabilityTTL = TimeSpan.MinValue
     let mutable mergeTTL = TimeSpan.MinValue
+    let mutable fromEmail = None
+    let mutable toEmail = None
     let emailClient = MindTouch.Email.t()
 
     // Immutable
@@ -94,7 +96,7 @@ type PullRequestService() as self =
                         let youtrack = MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value, github2youtrack)
                         JsonValue.Parse(github.GetPullRequestDetails(prUri).ToText())
                         |> MindTouch.PullRequest.DeterminePullRequestType github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues (fun repo targetBranch -> frozenBranches.ContainsKey (repo.ToLowerInvariant()) && Seq.exists (fun branch -> targetBranch.EqualsInvariantIgnoreCase(branch)) frozenBranches.[repo.ToLowerInvariant()])
-                        |> github.ProcessPullRequestType (fun prUri -> failwith(String.Format("Status for '{0}' is still undetermined", prUri))) (MindTouch.PullRequest.ProcessMergedPullRequest emailClient github youtrack)
+                        |> github.ProcessPullRequestType (fun prUri -> failwith(String.Format("Status for '{0}' is still undetermined", prUri))) (MindTouch.PullRequest.ProcessMergedPullRequest fromEmail.Value toEmail.Value emailClient github youtrack)
                         |> ignore
                     with
                         | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed || e.Response.Status = DreamStatus.Unauthorized || e.Response.Status = DreamStatus.Forbidden ->
@@ -173,6 +175,8 @@ type PullRequestService() as self =
         let github2youtrackMappingsStr = config' "github2youtrack"
         let archiveBranchesTTL = GetValue (GetConfigValue config "archive.branches.ttl" 0.) (24. * 60. * 60. * 1000.)
         let numberOfBranchesToKeep = GetValue (GetConfigValue config "archive.branches.keep" 0) 10
+        fromEmail <- config' "from.email"
+        toEmail <- config' "to.email"
 
         // Validate
         ValidateConfig "github.token" token
@@ -187,11 +191,15 @@ type PullRequestService() as self =
         ValidateConfig "youtrack.hostname" youtrackHostname
         ValidateConfig "youtrack.username" youtrackUsername
         ValidateConfig "youtrack.password" youtrackPassword
+        ValidateConfig "from.email" fromEmail
+        ValidateConfig "to.email" toEmail
+
+        // Build dependencies
         mergeTTL <- TimeSpan.FromMilliseconds(mergeTtl.Value)
         mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityTtl.Value)
         frozenBranches <- GetFrozenBranchesMapping config.["github.frozen.branches"]
         let github = MindTouch.Github.t(owner.Value, token.Value)
-
+        
         // Github repos
         let allRepos = repos.Value.Split(',')
        
@@ -228,7 +236,7 @@ type PullRequestService() as self =
         let youtrack = new MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value, github2youtrack)
         JsonValue.Parse(githubEvent)
         |> MindTouch.PullRequest.DeterminePullRequestTypeFromEvent github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues (fun repo targetBranch -> frozenBranches.ContainsKey (repo.ToLowerInvariant()) && Seq.exists (fun branch -> targetBranch.EqualsInvariantIgnoreCase(branch)) frozenBranches.[repo.ToLowerInvariant()])
-        |> github.ProcessPullRequestType (fun prUri -> pullRequestPollingAgent.Post(prUri)) ((MindTouch.PullRequest.ProcessMergedPullRequest emailClient github youtrack))
+        |> github.ProcessPullRequestType (fun prUri -> pullRequestPollingAgent.Post(prUri)) ((MindTouch.PullRequest.ProcessMergedPullRequest fromEmail.Value toEmail.Value emailClient github youtrack))
 
     [<DreamFeature("GET:status", "Check the service's status")>]
     member this.GetStatus (context : DreamContext) (request : DreamMessage) =
