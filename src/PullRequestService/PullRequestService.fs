@@ -191,8 +191,8 @@ type PullRequestService() as self =
         ValidateConfig "youtrack.hostname" youtrackHostname
         ValidateConfig "youtrack.username" youtrackUsername
         ValidateConfig "youtrack.password" youtrackPassword
-        // ValidateConfig "from.email" fromEmail
-        // ValidateConfig "to.email" toEmail
+        ValidateConfig "from.email" fromEmail
+        ValidateConfig "to.email" toEmail
 
         // Build dependencies
         mergeTTL <- TimeSpan.FromMilliseconds(mergeTtl.Value)
