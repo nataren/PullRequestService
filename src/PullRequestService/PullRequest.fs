@@ -186,6 +186,7 @@ let ProcessMergedPullRequest (fromEmail : string) (toEmail : string) (email : Mi
                 loop <- false
             else
                 logger.ErrorFormat("Could not email from '{0}' to '{1}' about merge conflict: '{2}'", fromEmail, toEmail, textBody, resp.ToString())
+                AsyncUtil.Sleep((10).Seconds())
          | ex ->
             AsyncUtil.Sleep((2. ** float(i)).Seconds())
             logger.ErrorFormat("Unexpected error while processing merged operation: {0}", ex.Message)
