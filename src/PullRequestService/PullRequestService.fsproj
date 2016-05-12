@@ -38,7 +38,7 @@
     <OutputPath>..\redist</OutputPath>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <StartArguments>config prod.config</StartArguments>
-    <StartWorkingDirectory>C:\Users\César López-Natarén\src\PullRequestService\src\redist\</StartWorkingDirectory>
+    <StartWorkingDirectory>C:\MindTouch\PullRequestService\src\redist\</StartWorkingDirectory>
     <StartAction>Program</StartAction>
     <StartProgram>C:\Users\César López-Natarén\src\PullRequestService\src\redist\mindtouch.host.exe</StartProgram>
     <Optimize>true</Optimize>
@@ -87,11 +87,9 @@
   <ItemGroup>
     <Reference Include="Autofac">
       <HintPath>..\packages\Autofac.2.6.3.862\lib\NET40\Autofac.dll</HintPath>
-      <Private>True</Private>
     </Reference>
     <Reference Include="Autofac.Configuration">
       <HintPath>..\packages\Autofac.2.6.3.862\lib\NET40\Autofac.Configuration.dll</HintPath>
-      <Private>True</Private>
     </Reference>
     <Reference Include="AWSSDK">
       <HintPath>..\packages\AWSSDK.2.3.55.0\lib\net35\AWSSDK.dll</HintPath>
@@ -105,19 +103,17 @@
     </Reference>
     <Reference Include="log4net">
       <HintPath>..\packages\log4net.1.2.10\lib\2.0\log4net.dll</HintPath>
-      <Private>True</Private>
     </Reference>
     <Reference Include="mindtouch.core">
-      <HintPath>..\redist\mindtouch.core.dll</HintPath>
+      <HintPath>..\packages\MindTouch.Core.2.6.0.766\lib\net40\mindtouch.core.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="mindtouch.dream">
       <HintPath>..\packages\MindTouch.DReAM.2.6.0.766\lib\net40\mindtouch.dream.dll</HintPath>
-      <Private>True</Private>
     </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="SgmlReaderDll">
       <HintPath>..\packages\MindTouch.DReAM.2.6.0.766\lib\net40\SgmlReaderDll.dll</HintPath>
-      <Private>True</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
