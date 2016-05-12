@@ -24,6 +24,9 @@
 module MindTouch.PullRequest
 open System
 open System.Text
+open System.Threading
+open MindTouch.Extensions.Time
+open MindTouch.Tasking
 open Microsoft.FSharp.Collections
 
 open MindTouch.Dream
@@ -179,6 +182,10 @@ let ProcessMergedPullRequest (fromEmail : string) (toEmail : string) (email : Mi
                                 htmlBody.ToString(),
                                 Seq.ofList [])
             let emailSent = resp.HttpStatusCode = Net.HttpStatusCode.OK
-            if not emailSent then
+            if emailSent then
+                loop <- false
+            else
                 logger.ErrorFormat("Could not email from '{0}' to '{1}' about merge conflict: '{2}'", fromEmail, toEmail, textBody, resp.ToString())
-         | ex -> logger.ErrorFormat("Unexpected error while processing merged operation: {0}", ex.Message)
+         | ex ->
+            AsyncUtil.Sleep((2. ** float(i)).Seconds())
+            logger.ErrorFormat("Unexpected error while processing merged operation: {0}", ex.Message)
