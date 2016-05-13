@@ -1,5 +1,5 @@
 ﻿(*
- * MindTouch.YouTrack - A client to the YouTrack API
+ * MindTouch.Domain - Helper data domain objects
  *
  * Copyright (C) 2006-2013 MindTouch, Inc.
  * www.mindtouch.com  oss@mindtouch.com
