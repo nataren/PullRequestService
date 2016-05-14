@@ -67,6 +67,7 @@ Create a file `pr.config` with the following content, and change the values appr
                 <archive.branches.keep>{HOW_MANY_RELEASE_BRANCHES_TO_KEEP_AROUND}</archive.branches.keep>
 				<to.email>{TARGET_EMAIL_ADDRESS}</to.email>
 				<from.email>{SES_ENABLED_EMAIL_ADDRESS}</from.email>
+				<aws.region>{REGION}</aws.region>
 			</config>
 		</action>
 	</script>

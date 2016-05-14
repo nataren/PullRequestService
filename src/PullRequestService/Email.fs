@@ -26,15 +26,20 @@ open log4net
 open System
 open Microsoft.FSharp.Collections
 
+open Amazon
 open Amazon.Runtime
 open Amazon.SimpleEmail
 open Amazon.SimpleEmail.Model
 
-type t() =
+type t(awsRegion : string) =
     
     // Build AWS SES
+    let region = awsRegion
     let awsCreds = new InstanceProfileAWSCredentials()
     let clientConfig = new AmazonSimpleEmailServiceConfig()
+    do
+        clientConfig.UseHttp <- false
+        clientConfig.RegionEndpoint <- RegionEndpoint.GetBySystemName(awsRegion)
     let emailClient = new AmazonSimpleEmailServiceClient(awsCreds, clientConfig)
 
     member this.SendEmail(from : string, to_ : string , subject : string, textBody : string, htmlBody : string, bccAddresses : seq<string>) : SendEmailResponse =

@@ -58,6 +58,9 @@ type Agent<'T> = MailboxProcessor<'T>
 [<DreamServiceConfig("youtrack.password", "string", "The YouTrack password")>]
 [<DreamServiceConfig("archive.branches.ttl", "int", "How frequently we prune the branches. The value is in milliseconds, it defaults to everyday")>]
 [<DreamServiceConfig("archive.branches.keep", "int", "The number of release branches that we need to keep around. Defaults to 4")>]
+[<DreamServiceConfig("to.email", "string", "The email address that will receive email messages about Github branches merge errors")>]
+[<DreamServiceConfig("from.email", "string", "The email address that will be used to send email messages about Github branches merge errors")>]
+[<DreamServiceConfig("aws.region", "string", "The AWS region the service we will be using")>]
 type PullRequestService() as self =
     inherit DreamService()
 
@@ -75,9 +78,12 @@ type PullRequestService() as self =
     let mutable mergeabilityRetries = None
     let mutable mergeabilityTTL = TimeSpan.MinValue
     let mutable mergeTTL = TimeSpan.MinValue
+    let mutable awsRegion = None
     let mutable fromEmail = None
     let mutable toEmail = None
-    let emailClient = MindTouch.Email.t()
+
+    [<DefaultValue>]
+    val mutable private emailClient : MindTouch.Email.t
 
     // Immutable
     let logger = LogManager.GetLogger typedefof<PullRequestService>
@@ -94,9 +100,10 @@ type PullRequestService() as self =
                     try
                         let github = MindTouch.Github.t(owner.Value, token.Value)
                         let youtrack = MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value, github2youtrack)
+                        let sesClient = MindTouch.Email.t(awsRegion.Value)
                         JsonValue.Parse(github.GetPullRequestDetails(prUri).ToText())
                         |> MindTouch.PullRequest.DeterminePullRequestType github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues (fun repo targetBranch -> frozenBranches.ContainsKey (repo.ToLowerInvariant()) && Seq.exists (fun branch -> targetBranch.EqualsInvariantIgnoreCase(branch)) frozenBranches.[repo.ToLowerInvariant()])
-                        |> github.ProcessPullRequestType (fun prUri -> failwith(String.Format("Status for '{0}' is still undetermined", prUri))) (MindTouch.PullRequest.ProcessMergedPullRequest fromEmail.Value toEmail.Value emailClient github youtrack)
+                        |> github.ProcessPullRequestType (fun prUri -> failwith(String.Format("Status for '{0}' is still undetermined", prUri))) (MindTouch.PullRequest.ProcessMergedPullRequest fromEmail.Value toEmail.Value sesClient github youtrack)
                         |> ignore
                     with
                         | :? DreamResponseException as e when e.Response.Status = DreamStatus.MethodNotAllowed || e.Response.Status = DreamStatus.Unauthorized || e.Response.Status = DreamStatus.Forbidden ->
@@ -175,6 +182,7 @@ type PullRequestService() as self =
         let github2youtrackMappingsStr = config' "github2youtrack"
         let archiveBranchesTTL = GetValue (GetConfigValue config "archive.branches.ttl" 0.) (24. * 60. * 60. * 1000.)
         let numberOfBranchesToKeep = GetValue (GetConfigValue config "archive.branches.keep" 0) 10
+        awsRegion <- config' "aws.region"
         fromEmail <- config' "from.email"
         toEmail <- config' "to.email"
 
@@ -193,8 +201,10 @@ type PullRequestService() as self =
         ValidateConfig "youtrack.password" youtrackPassword
         ValidateConfig "from.email" fromEmail
         ValidateConfig "to.email" toEmail
+        ValidateConfig "aws.ses.region" awsRegion
 
         // Build dependencies
+        this.emailClient <- MindTouch.Email.t(awsRegion.Value)
         mergeTTL <- TimeSpan.FromMilliseconds(mergeTtl.Value)
         mergeabilityTTL <- TimeSpan.FromMilliseconds(mergeabilityTtl.Value)
         frozenBranches <- GetFrozenBranchesMapping config.["github.frozen.branches"]
@@ -234,9 +244,10 @@ type PullRequestService() as self =
         logger.DebugFormat("Payload: ({0})", githubEvent)
         let github = MindTouch.Github.t(owner.Value, token.Value)
         let youtrack = new MindTouch.YouTrack.t(youtrackHostname.Value, youtrackUsername.Value, youtrackPassword.Value, github2youtrack)
+        let sesClient = new MindTouch.Email.t(awsRegion.Value)
         JsonValue.Parse(githubEvent)
         |> MindTouch.PullRequest.DeterminePullRequestTypeFromEvent github.IsReopenedPullRequest youtrack.IssuesValidator youtrack.FilterOutNotExistentIssues (fun repo targetBranch -> frozenBranches.ContainsKey (repo.ToLowerInvariant()) && Seq.exists (fun branch -> targetBranch.EqualsInvariantIgnoreCase(branch)) frozenBranches.[repo.ToLowerInvariant()])
-        |> github.ProcessPullRequestType (fun prUri -> pullRequestPollingAgent.Post(prUri)) ((MindTouch.PullRequest.ProcessMergedPullRequest fromEmail.Value toEmail.Value emailClient github youtrack))
+        |> github.ProcessPullRequestType (fun prUri -> pullRequestPollingAgent.Post(prUri)) ((MindTouch.PullRequest.ProcessMergedPullRequest fromEmail.Value toEmail.Value sesClient github youtrack))
 
     [<DreamFeature("GET:status", "Check the service's status")>]
     member this.GetStatus (context : DreamContext) (request : DreamMessage) =
