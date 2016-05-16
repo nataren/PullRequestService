@@ -190,8 +190,8 @@ let ProcessMergedPullRequest (fromEmail : string) (toEmail : string) (email : Mi
                                 ex.InnerException.Message,
                                 ex.Source_)
 
-            let textBody = String.Format("{0}\n\n{1}\n\n", subject, message)
-            let htmlBody = String.Format("<html><body><h1>{0}</h1><h2>{1}</h2></body></html>", subject, htmlMessage)
+            let textBody = String.Format("{0}\n\n{1}\n\n\n\n{2}\n\n", subject,  "You must submit your pull request to the conflicting branch", message)
+            let htmlBody = String.Format("<html><body><h1>{0}</h1><h2<{1}</h2><h3>{2}</h3></body></html>", subject, "You must submit your pull request to the conflicting branch", htmlMessage)
             let resp = email.SendEmail(
                                 fromEmail,
                                 toEmail,
