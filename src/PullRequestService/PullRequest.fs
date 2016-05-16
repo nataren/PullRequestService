@@ -172,9 +172,9 @@ let ProcessMergedPullRequest (fromEmail : string) (toEmail : string) (email : Mi
             logger.ErrorFormat("HTTP error during merge operation: {0}", ex.Message)
             let release = prMetadata.Release.ToSafeUniversalTime().ToString(MindTouch.DateUtils.DATE_PATTERN)
             let subject = "PullRequestService change propagation error, " + GlobalClock.UtcNow.ToString("f")
-            let sourceAndTargetPropagationMessage = String.Format("Could not propagate changes to '{0}' onto '{1}'", release, ex.Target)
-            let callToAction = "You must propagate your change by submiting a pull requset to the conflicting branch"
-            let message = String.Format("This service takes care of propagating changes across the different release branches.\n{8}\n{7}\nRepo='{0}'\nOriginal PR='{1}'\nAuthor='{2}'\nOriginal release branch='{3}'\nTarget branch='{4}'\nError='{5}'\nCommit='{6}'",
+            let sourceAndTargetPropagationMessage = String.Format("Could not propagate the changes to '{0}' from '{1}' onto '{2}'.", release, prMetadata.HtmlUri, ex.Target)
+            let callToAction = "You must propagate your change by submiting a pull requset to the conflicting branch."
+            let message = String.Format("This service takes care of propagating changes across the different release branches.\n{8}\n{7}\n\nRepo='{0}'\nOriginal PR='{1}'\nAuthor='{2}'\nOriginal release branch='{3}'\nTarget branch='{4}'\nError='{5}'\nCommit='{6}'",
                                 ex.Repo,
                                 prMetadata.HtmlUri,
                                 prMetadata.Author,
@@ -185,7 +185,7 @@ let ProcessMergedPullRequest (fromEmail : string) (toEmail : string) (email : Mi
                                 callToAction,
                                 sourceAndTargetPropagationMessage)
 
-            let htmlMessage = String.Format("This service takes care of propagating changes across the different release branches.<p>{8}</p>.<p>{7}</p><p>Repo='{0}'<br/>Original PR='{1}'<br/>Author='{2}'<br/>Original release branch='{3}'<br/>Target branch='{4}'<br/>Error='{5}'<br/>Commit='{6}'</p>",
+            let htmlMessage = String.Format("This service takes care of propagating changes across the different release branches.<p>{8}</p><p>{7}</p><p>Repo='{0}'<br/>Original PR='{1}'<br/>Author='{2}'<br/>Original release branch='{3}'<br/>Target branch='{4}'<br/>Error='{5}'<br/>Commit='{6}'</p>",
                                 ex.Repo,
                                 prMetadata.HtmlUri,
                                 prMetadata.Author,
