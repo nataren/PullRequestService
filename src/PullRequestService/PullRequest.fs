@@ -172,8 +172,24 @@ let ProcessMergedPullRequest (fromEmail : string) (toEmail : string) (email : Mi
             logger.ErrorFormat("HTTP error during merge operation: {0}", ex.Message)
             let release = prMetadata.Release.ToSafeUniversalTime().ToString(MindTouch.DateUtils.DATE_PATTERN)
             let subject = "PullRequestService merge error, " + GlobalClock.UtcNow.ToString("f")
-            let message = String.Format("Error merging changes\nRepo='{0}'\nCommit='{1}'\nOriginal release branch='{4}'\nTarget branch='{2}'\nError='{3}'", ex.Repo, ex.Source_, ex.Target, ex.InnerException.Message, release)
-            let htmlMessage = String.Format("Error merging changes<br/>Repo='{0}'<br/>Commit='{1}'<br/>Original release branch='{4}'<br/>Target branch='{2}'<br/>Error='{3}'", ex.Repo, ex.Source_, ex.Target, ex.InnerException.Message, release)
+            let message = String.Format("Error merging changes\nRepo='{0}'\nOriginal PR='{1}'\nAuthor='{2}'\nOriginal release branch='{3}'\nTarget branch='{4}'\nError='{5}'\nCommit='{6}'",
+                                ex.Repo,
+                                prMetadata.HtmlUri,
+                                prMetadata.Author,
+                                release,
+                                ex.Target,
+                                ex.InnerException.Message,
+                                ex.Source_)
+
+            let htmlMessage = String.Format("Error merging changes<br/>Repo='{0}'<br/>Original PR='{1}'<br/>Author='{2}'<br/>Original release branch='{3}'<br/>Target branch='{4}'<br/>Error='{5}'<br/>Commit='{6}'",
+                                ex.Repo,
+                                prMetadata.HtmlUri,
+                                prMetadata.Author,
+                                release,
+                                ex.Target,
+                                ex.InnerException.Message,
+                                ex.Source_)
+
             let textBody = String.Format("{0}\n\n{1}\n\n", subject, message)
             let htmlBody = String.Format("<html><body><h1>{0}</h1><h2>{1}</h2></body></html>", subject, htmlMessage)
             let resp = email.SendEmail(
