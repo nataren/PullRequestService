@@ -34,12 +34,19 @@ open log4net
 
 type PR = MindTouch.Domain.PullRequest
 
-type MergeException(repo : string, source : string, target : string, commitMessage : string) =
-    inherit Exception()
-    member this.Repo = repo
-    member this.Source_ = source
-    member this.Target = target
-    member this.CommitMessage = commitMessage
+type MergeException =
+    inherit Exception
+    val Repo : string
+    val Source_ : string
+    val Target : string
+    val CommitMessage : string
+    new (repo : string, source : string, target : string, commitMessage : string, innerException : Exception) = {
+        inherit Exception("Error merging changes", innerException)
+        Repo = repo
+        Source_ = source
+        Target = target
+        CommitMessage = commitMessage
+    }
 
 type t(owner, token) =
     let owner = owner
@@ -251,7 +258,7 @@ type t(owner, token) =
             | :? DreamResponseException as ex  ->
                 logger.ErrorExceptionFormat(ex, "Error found when trying to merge branches on repo '{0}', source '{1}', target '{2}': '{3}'", repo, source, target, ex.Message)
                 if ex.Response.Status = DreamStatus.Conflict then
-                    raise(new MergeException(repo, source, target, commitMessage))
+                    raise(new MergeException(repo, source, target, commitMessage, ex))
                 else
                     raise ex
 

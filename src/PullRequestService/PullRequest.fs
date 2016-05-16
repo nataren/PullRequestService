@@ -172,8 +172,8 @@ let ProcessMergedPullRequest (fromEmail : string) (toEmail : string) (email : Mi
             logger.ErrorFormat("HTTP error during merge operation: {0}", ex.Message)
             let release = prMetadata.Release.ToSafeUniversalTime().ToString(MindTouch.DateUtils.DATE_PATTERN)
             let subject = "PullRequestService merge error, " + GlobalClock.UtcNow.ToString("f")
-            let message = String.Format("Error merging changes\nRepo='{0}'\nCommit='{1}'\nOriginal release branch='{4}'\nTarget branch='{2}'\nError='{3}'", ex.Repo, ex.Source_, ex.Target, ex.Message, release)
-            let htmlMessage = String.Format("Error merging changes<br/>Repo='{0}'<br/>Commit='{1}'<br/>Original release branch='{4}'<br/>Target branch='{2}'<br/>Error='{3}'", ex.Repo, ex.Source_, ex.Target, ex.Message, release)
+            let message = String.Format("Error merging changes\nRepo='{0}'\nCommit='{1}'\nOriginal release branch='{4}'\nTarget branch='{2}'\nError='{3}'", ex.Repo, ex.Source_, ex.Target, ex.InnerException.Message, release)
+            let htmlMessage = String.Format("Error merging changes<br/>Repo='{0}'<br/>Commit='{1}'<br/>Original release branch='{4}'<br/>Target branch='{2}'<br/>Error='{3}'", ex.Repo, ex.Source_, ex.Target, ex.InnerException.Message, release)
             let textBody = String.Format("{0}\n\n{1}\n\n", subject, message)
             let htmlBody = String.Format("<html><body><h1>{0}</h1><h2>{1}</h2></body></html>", subject, htmlMessage)
             let resp = email.SendEmail(
