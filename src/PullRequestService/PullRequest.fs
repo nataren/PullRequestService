@@ -171,8 +171,8 @@ let ProcessMergedPullRequest (fromEmail : string) (toEmail : string) (email : Mi
         | :? MindTouch.Github.MergeException as ex ->
             logger.ErrorFormat("HTTP error during merge operation: {0}", ex.Message)
             let release = "release_" + prMetadata.Release.ToSafeUniversalTime().ToString(MindTouch.DateUtils.DATE_PATTERN)
-            let subject = prMetadata.Author + ", there was a change propagation error on " + GlobalClock.UtcNow.ToString("f")
-            let sourceAndTargetPropagationMessage = String.Format("Could not propagate the changes done to '{0}', with '{1}', onto '{2}'.", release, prMetadata.HtmlUri, ex.Target)
+            let subject = prMetadata.Author + ", there was an error propagating your changes to repository " + ex.Repo + ", on " + GlobalClock.UtcNow.ToString("f")
+            let sourceAndTargetPropagationMessage = String.Format("Could not propagate the changes made to '{0}' from '{1}' to '{2}'.", release, prMetadata.HtmlUri, ex.Target)
             let callToAction = "You must propagate your changes by  fixing the conflicts, and submiting a pull request to the conflicting branch."
             let message = String.Format("This service takes care of propagating changes across the different release branches.\n{8}\n{7}\n\nRepo='{0}'\nOriginal PR='{1}'\nAuthor='{2}'\nOriginal release branch='{3}'\nTarget branch='{4}'\nError='{5}'\nCommit='{6}'",
                                 ex.Repo,
@@ -196,8 +196,8 @@ let ProcessMergedPullRequest (fromEmail : string) (toEmail : string) (email : Mi
                                 callToAction,
                                 sourceAndTargetPropagationMessage)
 
-            let textBody = String.Format("{0}\n\n\{1}\n\n", subject, message)
-            let htmlBody = String.Format("<html><body><h1>{0}</h1><h3>{1}</h3></body></html>", subject, htmlMessage)
+            let textBody = String.Format("{0}\n\n", message)
+            let htmlBody = String.Format("<html><body>{0}</body></html>", htmlMessage)
             let resp = email.SendEmail(
                                 fromEmail,
                                 toEmail,
