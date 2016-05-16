@@ -273,6 +273,7 @@ type t(owner, token) =
 
         // Only merge to master if it is a hotfix
         if DateTime.UtcNow > release then
+            logger.DebugFormat("Merging to repo '{0}', commit '{1}' from release '{3}', on branch '{2}'", prMetadata.Repo, commit, release, "master")
             this.MergeBranch prMetadata.Repo commit "master" (autoMergingMessage + "master") |> ignore
 
         // Merge the change to newer branches than ours
