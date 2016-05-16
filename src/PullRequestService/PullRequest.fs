@@ -172,26 +172,28 @@ let ProcessMergedPullRequest (fromEmail : string) (toEmail : string) (email : Mi
             logger.ErrorFormat("HTTP error during merge operation: {0}", ex.Message)
             let release = prMetadata.Release.ToSafeUniversalTime().ToString(MindTouch.DateUtils.DATE_PATTERN)
             let subject = "PullRequestService merge error, " + GlobalClock.UtcNow.ToString("f")
-            let message = String.Format("Error merging changes\nRepo='{0}'\nOriginal PR='{1}'\nAuthor='{2}'\nOriginal release branch='{3}'\nTarget branch='{4}'\nError='{5}'\nCommit='{6}'",
+            let message = String.Format("Error merging changes\n{7}\nRepo='{0}'\nOriginal PR='{1}'\nAuthor='{2}'\nOriginal release branch='{3}'\nTarget branch='{4}'\nError='{5}'\nCommit='{6}'",
                                 ex.Repo,
                                 prMetadata.HtmlUri,
                                 prMetadata.Author,
                                 release,
                                 ex.Target,
                                 ex.InnerException.Message,
-                                ex.Source_)
+                                ex.Source_,
+                                "You must submit your pull request to the conflicting branch")
 
-            let htmlMessage = String.Format("Error merging changes<br/>Repo='{0}'<br/>Original PR='{1}'<br/>Author='{2}'<br/>Original release branch='{3}'<br/>Target branch='{4}'<br/>Error='{5}'<br/>Commit='{6}'",
+            let htmlMessage = String.Format("Error merging changes<br/>{7}<br/>Repo='{0}'<br/>Original PR='{1}'<br/>Author='{2}'<br/>Original release branch='{3}'<br/>Target branch='{4}'<br/>Error='{5}'<br/>Commit='{6}'",
                                 ex.Repo,
                                 prMetadata.HtmlUri,
                                 prMetadata.Author,
                                 release,
                                 ex.Target,
                                 ex.InnerException.Message,
-                                ex.Source_)
+                                ex.Source_,
+                                "You must submit your pull request to the conflicting branch")
 
-            let textBody = String.Format("{0}\n\n{1}\n\n\n\n{2}\n\n", subject,  "You must submit your pull request to the conflicting branch", message)
-            let htmlBody = String.Format("<html><body><h1>{0}</h1><h2<{1}</h2><h3>{2}</h3></body></html>", subject, "You must submit your pull request to the conflicting branch", htmlMessage)
+            let textBody = String.Format("{0}\n\n\{1}\n\n", subject, message)
+            let htmlBody = String.Format("<html><body><h1>{0}</h1><h3>{1}</h3></body></html>", subject, htmlMessage)
             let resp = email.SendEmail(
                                 fromEmail,
                                 toEmail,
