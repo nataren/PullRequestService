@@ -36,6 +36,7 @@ type MergedPullRequestMetadata = {
     Message : String;
     Release : DateTime;
     Head: JsonValue;
+    Base: JsonValue;
     MergeCommitSHA: String;
 }
 

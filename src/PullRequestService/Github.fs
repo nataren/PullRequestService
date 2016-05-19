@@ -263,30 +263,33 @@ type t(owner, token) =
                     raise ex
 
     member this.ProcessMergedPullRequest (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) =
-        let branches = this.GetBranches prMetadata.Repo
+        let repo = prMetadata.Repo
+        let branches = this.GetBranches repo
         let release = prMetadata.Release.ToSafeUniversalTime()
-        let sortedBranches =
+        let branchesToPropagateTo =
             branches
             |> Seq.choose (fun s ->
                                let branchname = s?name.AsString() in
                                let (valid, result) = DateTime.TryParseExact(branchname.Substring 8, MindTouch.DateUtils.DATE_PATTERN, null, DateTimeStyles.None) in
-                                   if valid then Some(branchname, result) else None)
+                                   if valid && (result.ToSafeUniversalTime() > release) then Some(branchname, result) else None)
             |> Seq.sortBy (fun (_, date) -> date)
+            |> Seq.map (fun (branchname, _) -> branchname)
             |> Seq.toArray
-
+        
         // The commit we need to propagate
         let commit = if String.IsNullOrEmpty prMetadata.MergeCommitSHA then prMetadata.Head?sha.AsString() else prMetadata.MergeCommitSHA
         let autoMergingMessage = String.Format("Auto-merging change from {0} to ", prMetadata.Head?label.AsString())
 
-        // Only merge to master if it is a hotfix
-        if DateTime.UtcNow > release then
+        // Hotfix
+        (if DateTime.UtcNow > release then
             logger.DebugFormat("Merging to repo '{0}', commit '{1}' from release '{3}', on branch '{2}'", prMetadata.Repo, commit, release, "master")
-            this.MergeBranch prMetadata.Repo commit "master" (autoMergingMessage + "master") |> ignore
-
-        // Merge the change to newer branches than ours
-        sortedBranches 
-        |> Seq.iter (fun (branch, date) ->
-            if date.ToSafeUniversalTime() > release then 
-                logger.DebugFormat("Merging to repo '{0}', commit '{1}' from release '{3}', on branch '{2}'", prMetadata.Repo, commit, branch, release.ToString(MindTouch.DateUtils.DATE_PATTERN))
-                this.MergeBranch prMetadata.Repo commit branch (autoMergingMessage + branch) |> ignore
-        )
+            this.MergeBranch repo commit "master" (autoMergingMessage + "master") |> ignore
+            branchesToPropagateTo |> Seq.append [| "master" |]
+        else
+            // Late check-in
+            branchesToPropagateTo |> Seq.append [| prMetadata.Base?ref.AsString() |])
+       |> Seq.pairwise
+       |> Seq.iter (fun (src, target) ->
+                        let mergingMessage = String.Format("Auto-merging {0} to {1}", src, target)
+                        logger.Debug mergingMessage
+                        this.MergeBranch repo src target mergingMessage |> ignore)

@@ -132,6 +132,7 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
         Message = (pr?body.AsString());
         Release = getTargetBranchDate pr;
         Head = pr?head;
+        Base = pr?``base``;
         MergeCommitSHA = pr?merge_commit_sha.AsString() }
     else if IsUnknownMergeabilityPullRequest pr then
         PR.UnknownMergeability prUri
