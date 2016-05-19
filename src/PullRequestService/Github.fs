@@ -278,12 +278,12 @@ type t(owner, token) =
         
         // The commit we need to propagate
         let commit = if String.IsNullOrEmpty prMetadata.MergeCommitSHA then prMetadata.Head?sha.AsString() else prMetadata.MergeCommitSHA
-        let autoMergingMessage = String.Format("Auto-merging change from {0} to ", prMetadata.Head?label.AsString())
 
         // Hotfix
         (if DateTime.UtcNow > release then
-            logger.DebugFormat("Merging to repo '{0}', commit '{1}' from release '{3}', on branch '{2}'", prMetadata.Repo, commit, release, "master")
-            this.MergeBranch repo commit "master" (autoMergingMessage + "master") |> ignore
+            let mergingMessage = String.Format("Auto-merging {0} to {1}", prMetadata.Head?label.AsString(), "master")
+            logger.Debug (repo + ": " + mergingMessage)
+            this.MergeBranch repo commit "master" mergingMessage |> ignore
             branchesToPropagateTo |> Seq.append [| "master" |]
         else
             // Late check-in
@@ -291,5 +291,5 @@ type t(owner, token) =
        |> Seq.pairwise
        |> Seq.iter (fun (src, target) ->
                         let mergingMessage = String.Format("Auto-merging {0} to {1}", src, target)
-                        logger.Debug mergingMessage
+                        logger.Debug (repo + ": " + mergingMessage)
                         this.MergeBranch repo src target mergingMessage |> ignore)
