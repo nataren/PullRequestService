@@ -23,6 +23,11 @@
 [<RequireQualifiedAccess>]
 module MindTouch.PullRequest
 open System
+open System.Text
+open System.Threading
+open MindTouch.Extensions.Time
+open MindTouch.Tasking
+open Microsoft.FSharp.Collections
 
 open MindTouch.Dream
 
@@ -30,19 +35,10 @@ open FSharp.Data.Json
 open FSharp.Data.Json.Extensions
 open log4net
 
-type t =
-| Invalid of XUri * XUri
-| AutoMergeable of XUri
-| UnknownMergeability of XUri
-| OpenedNotLinkedToYouTrackIssue of XUri * XUri
-| ReopenedNotLinkedToYouTrackIssue of string * XUri
-| Merged of MindTouch.YouTrack.MergedPullRequestMetadata
-| Skip of string * XUri
-| ClosedAndNotMerged of XUri
-| TargetsExplicitlyFrozenBranch of (string * XUri)
-| TargetsSpecificPurposeBranch of XUri
+type PR = MindTouch.Domain.PullRequest
 
-let logger = LogManager.GetLogger typedefof<t>
+let logger = LogManager.GetLogger typedefof<PR>
+let RETRY_COUNT = 10
 
 let IsMergeable pr =
     let mergeable = pr?mergeable
@@ -105,7 +101,7 @@ let GetTicketNames (branchName : string) =
 let GetCommentsUrl (pr : JsonValue) =
     new XUri(pr?comments_url.AsString())
 
-let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargettingExplicitlyFrozenBranch pr : t =
+let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargettingExplicitlyFrozenBranch pr : PR =
     let pullRequestUri = pr?url.AsString()
     let prUri = new XUri(pullRequestUri)
     let branchName = pr?head?ref.AsString()
@@ -117,29 +113,33 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
 
     // Classify the kind of pull request we are getting
     if IsTargettingSpecificPurposeBranch branchName then
-        TargetsSpecificPurposeBranch prUri
+        PR.TargetsSpecificPurposeBranch prUri
     else if IsClosedPullRequest state && not (IsMergedPullRequest pr) then
-        ClosedAndNotMerged prUri
+        PR.ClosedAndNotMerged prUri
     else if IsInvalidPullRequest pr then
-        Invalid (prUri, commentsUri)
+        PR.Invalid (prUri, commentsUri)
     else if IsOpenPullRequest state && notValidInYouTrack() then
-        OpenedNotLinkedToYouTrackIssue (prUri, commentsUri)
+        PR.OpenedNotLinkedToYouTrackIssue (prUri, commentsUri)
     else if IsOpenPullRequest state && IsTargettingExplicitlyFrozenBranch repoName pr isTargettingExplicitlyFrozenBranch then
-        TargetsExplicitlyFrozenBranch (repoName, commentsUri)
+        PR.TargetsExplicitlyFrozenBranch (repoName, commentsUri)
     else if IsOpenPullRequest state && reopenedPullRequest pr && notValidInYouTrack() then
-        ReopenedNotLinkedToYouTrackIssue(repoName, commentsUri)
-    else if IsMergedPullRequest pr then Merged {
+        PR.ReopenedNotLinkedToYouTrackIssue(repoName, commentsUri)
+    else if IsMergedPullRequest pr then PR.Merged {
+        Repo = repoName
         HtmlUri = new XUri(pr?html_url.AsString())
         LinkedYouTrackIssues = branchName |> GetTicketNames |> youtrackIssuesFilter
         Author = (pr?user?login.AsString());
         Message = (pr?body.AsString());
-        Release = getTargetBranchDate pr }
+        Release = getTargetBranchDate pr;
+        Head = pr?head;
+        Base = pr?``base``;
+        MergeCommitSHA = pr?merge_commit_sha.AsString() }
     else if IsUnknownMergeabilityPullRequest pr then
-        UnknownMergeability prUri
+        PR.UnknownMergeability prUri
     else if (IsOpenPullRequest state || reopenedPullRequest pr) && IsAutoMergeablePullRequest pr then
-        AutoMergeable prUri
+        PR.AutoMergeable prUri
     else
-        Skip(repoName, commentsUri)
+        PR.Skip(repoName, commentsUri)
 
 let DeterminePullRequestTypeFromEvent reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargetingRepoFrozenBranch prEvent =
     let pr = prEvent?pull_request
@@ -147,10 +147,71 @@ let DeterminePullRequestTypeFromEvent reopenedPullRequest youtrackValidator yout
     let notValidInYouTrack = fun() -> not << youtrackValidator << GetTicketNames <| branchName
     let commentsUri = GetCommentsUrl pr
     if IsReopenedPullRequestEvent prEvent && notValidInYouTrack() then
-        ReopenedNotLinkedToYouTrackIssue(pr?head?repo?name.AsString(), commentsUri)
+        PR.ReopenedNotLinkedToYouTrackIssue(pr?head?repo?name.AsString(), commentsUri)
     else
         DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssuesFilter isTargetingRepoFrozenBranch pr
 
+let ProcessMergedPullRequest (fromEmail : string) (toEmail : string) (email : MindTouch.Email.t) (github : MindTouch.Github.t) (youtrack : MindTouch.YouTrack.t) (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) : Unit =
 
+    // Update the YouTrack ticket
+    try
+        youtrack.ProcessMergedPullRequest prMetadata
+    with
+    | ex -> logger.ErrorFormat("Error processing youtrack part of pull request: '{0}'", ex.Message)
 
+    // Propagate the changes forward
+    let mutable loop = true
+    let mutable i = 0
+    while loop do
+        i <- i + 1
+        loop <- i < RETRY_COUNT
+        try
+            github.ProcessMergedPullRequest prMetadata
+            loop <- false
+        with
+        | :? MindTouch.Github.MergeException as ex ->
+            logger.ErrorFormat("HTTP error during merge operation: {0}", ex.Message)
+            let release = "release_" + prMetadata.Release.ToSafeUniversalTime().ToString(MindTouch.DateUtils.DATE_PATTERN)
+            let subject = prMetadata.Author + ", there was an error propagating your changes to repository " + ex.Repo + ", on " + GlobalClock.UtcNow.ToString("f")
+            let sourceAndTargetPropagationMessage = String.Format("Could not propagate the changes made to '{0}' from '{1}' to '{2}'.", release, prMetadata.HtmlUri, ex.Target)
+            let callToAction = "You must propagate your changes by  fixing the conflicts, and submiting a pull request to the conflicting branch."
+            let message = String.Format("This service takes care of propagating changes across the different release branches.\n{8}\n{7}\n\nRepo='{0}'\nOriginal PR='{1}'\nAuthor='{2}'\nOriginal release branch='{3}'\nTarget branch='{4}'\nError='{5}'\nCommit='{6}'",
+                                ex.Repo,
+                                prMetadata.HtmlUri,
+                                prMetadata.Author,
+                                release,
+                                ex.Target,
+                                ex.InnerException.Message,
+                                ex.Source_,
+                                callToAction,
+                                sourceAndTargetPropagationMessage)
 
+            let htmlMessage = String.Format("This service takes care of propagating changes across the different release branches.<p>{8}</p><p>{7}</p><p>Repo='{0}'<br/>Original PR='{1}'<br/>Author='{2}'<br/>Original release branch='{3}'<br/>Target branch='{4}'<br/>Error='{5}'<br/>Commit='{6}'</p>",
+                                ex.Repo,
+                                prMetadata.HtmlUri,
+                                prMetadata.Author,
+                                release,
+                                ex.Target,
+                                ex.InnerException.Message,
+                                ex.Source_,
+                                callToAction,
+                                sourceAndTargetPropagationMessage)
+
+            let textBody = String.Format("{0}\n\n", message)
+            let htmlBody = String.Format("<html><body>{0}</body></html>", htmlMessage)
+            let resp = email.SendEmail(
+                                fromEmail,
+                                toEmail,
+                                subject,
+                                textBody.ToString(),
+                                htmlBody.ToString(),
+                                Seq.ofList [])
+            let emailSent = resp.HttpStatusCode = Net.HttpStatusCode.OK
+            if emailSent then
+                loop <- false
+            else
+                logger.ErrorFormat("Could not email from '{0}' to '{1}' about merge conflict: '{2}'", fromEmail, toEmail, textBody, resp.ToString())
+                AsyncUtil.Sleep((10).Seconds())
+         | ex ->
+            AsyncUtil.Sleep((2. ** float(i)).Seconds())
+            logger.ErrorFormat("Unexpected error while processing merged operation: {0}", ex.Message)

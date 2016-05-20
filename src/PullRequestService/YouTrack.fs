@@ -25,14 +25,8 @@ open log4net
 open MindTouch.Dream
 open System.Collections.Generic
 open System
-
-type MergedPullRequestMetadata = {
-    HtmlUri : XUri;
-    LinkedYouTrackIssues : seq<string>;
-    Author : String;
-    Message : String;
-    Release : DateTime
-}
+open FSharp.Data.Json
+open FSharp.Data.Json.Extensions
 
 type t(hostname : string, username, password, github2youtrackMapping : Map<string, string>) =
     let github2youtrack = github2youtrackMapping
@@ -60,14 +54,15 @@ type t(hostname : string, username, password, github2youtrackMapping : Map<strin
     member this.IssueExists (issue : string) =
         api.At("rest", "issue", issue, "exists").WithHeader("Accept", MimeType.JSON.ToString()).Get().Status = DreamStatus.Ok
 
-    member this.ProcessMergedPullRequest (mergedPrMetadata : MergedPullRequestMetadata) =
+    member this.ProcessMergedPullRequest (mergedPrMetadata : MindTouch.Domain.MergedPullRequestMetadata) =
         mergedPrMetadata.LinkedYouTrackIssues
         |> Seq.iter (fun issue -> 
             try
                 this.VerifyIssue issue mergedPrMetadata.HtmlUri (mergedPrMetadata.Release.ToString("yyyyMMdd")) mergedPrMetadata.Message mergedPrMetadata.Author |> ignore
             with
-            | ex -> logger.DebugExceptionMethodCall(ex, "Error happened processing issue '{0}', '{1}'", issue, ex.Message))
-
+            | ex ->
+                logger.DebugExceptionMethodCall(ex, "Error happened processing issue '{0}', '{1}'", issue, ex.Message))
+        
     member this.VerifyIssue (issue : string) (prUri : XUri) (release : string) (comment : string) (author : string) =
         let stateCmd = if issue.StartsWithInvariantIgnoreCase("MTP-") then "S QA" else "State Verified"
         let command = String.Format("add In Release {0} {1} {2}",

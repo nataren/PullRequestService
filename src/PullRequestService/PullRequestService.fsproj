@@ -3,8 +3,6 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
-    <ProductVersion>8.0.30703</ProductVersion>
-    <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{614C828C-4F77-48FC-BC30-FD3D9D34F04B}</ProjectGuid>
     <OutputType>Library</OutputType>
     <RootNamespace>mindtouch</RootNamespace>
@@ -16,7 +14,6 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
     <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <Tailcalls>false</Tailcalls>
     <OutputPath>..\bin\</OutputPath>
@@ -35,18 +32,27 @@
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>x86</PlatformTarget>
     <DocumentationFile>bin\Release\PullGuard.XML</DocumentationFile>
+    <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <OutputPath>..\redist</OutputPath>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <StartArguments>config prod.config</StartArguments>
-    <StartWorkingDirectory>C:\Users\César López-Natarén\src\PullRequestService\src\redist\</StartWorkingDirectory>
+    <StartWorkingDirectory>C:\MindTouch\PullRequestService\src\redist\</StartWorkingDirectory>
     <StartAction>Program</StartAction>
     <StartProgram>C:\Users\César López-Natarén\src\PullRequestService\src\redist\mindtouch.host.exe</StartProgram>
+    <Optimize>true</Optimize>
+    <DebugSymbols>true</DebugSymbols>
+    <DefineConstants>
+    </DefineConstants>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <OutputPath>..\bin\</OutputPath>
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <Optimize>true</Optimize>
+    <DebugSymbols>true</DebugSymbols>
+    <DefineConstants>
+    </DefineConstants>
   </PropertyGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
@@ -67,18 +73,27 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="DateUtils.fs" />
+    <Compile Include="Domain.fs" />
+    <Compile Include="Email.fs" />
     <Compile Include="YouTrack.fs" />
-    <Compile Include="PullRequest.fs" />
     <Compile Include="Github.fs" />
+    <Compile Include="PullRequest.fs" />
+    <Compile Include="PullRequestService.fs" />
     <None Include="App.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="packages.config" />
-    <Compile Include="PullRequestService.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Autofac">
-      <HintPath>..\redist\Autofac.dll</HintPath>
+      <HintPath>..\packages\Autofac.2.6.3.862\lib\NET40\Autofac.dll</HintPath>
+    </Reference>
+    <Reference Include="Autofac.Configuration">
+      <HintPath>..\packages\Autofac.2.6.3.862\lib\NET40\Autofac.Configuration.dll</HintPath>
+    </Reference>
+    <Reference Include="AWSSDK">
+      <HintPath>..\packages\AWSSDK.2.3.55.0\lib\net35\AWSSDK.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="FSharp.Data">
       <HintPath>..\packages\FSharp.Data.1.1.5\lib\net40\FSharp.Data.dll</HintPath>
@@ -86,20 +101,24 @@
     <Reference Include="FSharp.Data.DesignTime">
       <HintPath>..\packages\FSharp.Data.1.1.5\lib\net40\FSharp.Data.DesignTime.dll</HintPath>
     </Reference>
+    <Reference Include="log4net">
+      <HintPath>..\packages\log4net.1.2.10\lib\2.0\log4net.dll</HintPath>
+    </Reference>
     <Reference Include="mindtouch.core">
-      <HintPath>..\redist\mindtouch.core.dll</HintPath>
+      <HintPath>..\packages\MindTouch.Core.2.6.0.766\lib\net40\mindtouch.core.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="mindtouch.dream">
-      <HintPath>..\redist\mindtouch.dream.dll</HintPath>
+      <HintPath>..\packages\MindTouch.DReAM.2.6.0.766\lib\net40\mindtouch.dream.dll</HintPath>
     </Reference>
     <Reference Include="mscorlib" />
+    <Reference Include="SgmlReaderDll">
+      <HintPath>..\packages\MindTouch.DReAM.2.6.0.766\lib\net40\SgmlReaderDll.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Numerics" />
     <Reference Include="System.Xml" />
-    <Reference Include="log4net">
-      <HintPath>..\redist\log4net.dll</HintPath>
-    </Reference>
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
 	     Other similar extension points exist, see Microsoft.Common.targets.

@@ -30,8 +30,23 @@ open FSharp.Data.Json
 open FSharp.Data.Json.Extensions
 open System.Globalization
 
-type PullRequest = MindTouch.PullRequest.t
 open log4net
+
+type PR = MindTouch.Domain.PullRequest
+
+type MergeException =
+    inherit Exception
+    val Repo : string
+    val Source_ : string
+    val Target : string
+    val CommitMessage : string
+    new (repo : string, source : string, target : string, commitMessage : string, innerException : Exception) = {
+        inherit Exception("Error merging changes", innerException)
+        Repo = repo
+        Source_ = source
+        Target = target
+        CommitMessage = commitMessage
+    }
 
 type t(owner, token) =
     let owner = owner
@@ -116,18 +131,18 @@ type t(owner, token) =
         action prUri
         DreamMessage.Ok(MimeType.JSON, JsonValue.String(msg).ToString())
 
-    member this.ProcessPullRequestType pollAction mergedPrHandler prEventType =
+    member this.ProcessPullRequestType pollAction (mergedPrHandler : MindTouch.Domain.MergedPullRequestMetadata -> Unit) prEventType =
         match prEventType with
-        | PullRequest.Invalid (prUri, commentsUri) -> this.CommentOnPullRequest commentsUri "This pull request is invalid because its target is the master branch, it will be closed" |> ignore; this.ClosePullRequest prUri |> ignore; DreamMessage.Ok()
-        | PullRequest.AutoMergeable uri -> this.MergePullRequest uri
-        | PullRequest.UnknownMergeability uri -> this.PollPullRequest uri pollAction
-        | PullRequest.OpenedNotLinkedToYouTrackIssue (prUri, commentsUri) -> this.CommentOnPullRequest commentsUri "This just opened pull request is not bound to a YouTrack issue, it will be closed" |> ignore; this.ClosePullRequest prUri
-        | PullRequest.ReopenedNotLinkedToYouTrackIssue (repoName, uri) -> this.CommentOnPullRequest uri "This just *reopened* pull request is not bound to a YouTrack issue, it will be ignored but contact your Technical Lead so it gets handled" |> ignore; DreamMessage.Ok()
-        | PullRequest.Merged mergedPrMetadata -> mergedPrHandler mergedPrMetadata |> ignore; DreamMessage.Ok()
-        | PullRequest.Skip (repoName, uri) -> this.CommentOnPullRequest uri "This pull request is going to be ignored, contact your Technical Lead so it gets handled" |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since is not targeting an open branch").ToString())
-        | PullRequest.ClosedAndNotMerged uri -> DreamMessage.Ok(MimeType.JSON, String.Format("Pull Request '{0}' was closed and not merged", uri.ToString()))
-        | PullRequest.TargetsExplicitlyFrozenBranch (repoName, uri) -> this.CommentOnPullRequest uri "This pull request targets an explicitly frozen branch, contact your Technical Lead so it gets handled" |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since it is targetting an explicitly frozen branch").ToString())
-        | PullRequest.TargetsSpecificPurposeBranch uri -> DreamMessage.Ok(MimeType.JSON, "PullRequest targets specific purpose branch, will ignore")
+        | PR.Invalid (prUri, commentsUri) -> this.CommentOnPullRequest commentsUri "This pull request is invalid because its target is the master branch, it will be closed" |> ignore; this.ClosePullRequest prUri |> ignore; DreamMessage.Ok()
+        | PR.AutoMergeable uri -> this.MergePullRequest uri
+        | PR.UnknownMergeability uri -> this.PollPullRequest uri pollAction
+        | PR.OpenedNotLinkedToYouTrackIssue (prUri, commentsUri) -> this.CommentOnPullRequest commentsUri "This just opened pull request is not bound to a YouTrack issue, it will be closed" |> ignore; this.ClosePullRequest prUri
+        | PR.ReopenedNotLinkedToYouTrackIssue (repoName, uri) -> this.CommentOnPullRequest uri "This just *reopened* pull request is not bound to a YouTrack issue, it will be ignored but contact your Technical Lead so it gets handled" |> ignore; DreamMessage.Ok()
+        | PR.Merged mergedPrMetadata -> mergedPrHandler mergedPrMetadata; DreamMessage.Ok()
+        | PR.Skip (repoName, uri) -> this.CommentOnPullRequest uri "This pull request is going to be ignored, contact your Technical Lead so it gets handled" |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since is not targeting an open branch").ToString())
+        | PR.ClosedAndNotMerged uri -> DreamMessage.Ok(MimeType.JSON, String.Format("Pull Request '{0}' was closed and not merged", uri.ToString()))
+        | PR.TargetsExplicitlyFrozenBranch (repoName, uri) -> this.CommentOnPullRequest uri "This pull request targets an explicitly frozen branch, contact your Technical Lead so it gets handled" |> ignore; DreamMessage.Ok(MimeType.JSON, JsonValue.String("Pull request needs to be handled by a human since it is targetting an explicitly frozen branch").ToString())
+        | PR.TargetsSpecificPurposeBranch uri -> DreamMessage.Ok(MimeType.JSON, "PullRequest targets specific purpose branch, will ignore")
 
     member this.GetPullRequestDetails (prUri : XUri) =
         logger.DebugFormat("Will fetch the details of pull request '{0}'", prUri.ToString())
@@ -235,5 +250,46 @@ type t(owner, token) =
                 |> Seq.toArray
                 |> Some
 
+    member this.MergeBranch (repo : string) (source : string) (target : string) (commitMessage : string) =
+        let mergePayload = String.Format("""{{ "base": "{0}", "head": "{1}", "commit_message": "{2}" }}""", target, source, commitMessage)
+        try
+            api.At("repos", owner, repo, "merges").Post(Auth mergePayload)
+        with
+            | :? DreamResponseException as ex  ->
+                logger.ErrorExceptionFormat(ex, "Error found when trying to merge branches on repo '{0}', source '{1}', target '{2}': '{3}'", repo, source, target, ex.Message)
+                if ex.Response.Status = DreamStatus.Conflict then
+                    raise(new MergeException(repo, source, target, commitMessage, ex))
+                else
+                    raise ex
 
+    member this.ProcessMergedPullRequest (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) =
+        let repo = prMetadata.Repo
+        let branches = this.GetBranches repo
+        let release = prMetadata.Release.ToSafeUniversalTime()
+        let branchesToPropagateTo =
+            branches
+            |> Seq.choose (fun s ->
+                               let branchname = s?name.AsString() in
+                               let (valid, result) = DateTime.TryParseExact(branchname.Substring 8, MindTouch.DateUtils.DATE_PATTERN, null, DateTimeStyles.None) in
+                                   if valid && (result.ToSafeUniversalTime() > release) then Some(branchname, result) else None)
+            |> Seq.sortBy (fun (_, date) -> date)
+            |> Seq.map (fun (branchname, _) -> branchname)
+            |> Seq.toArray
+        
+        // The commit we need to propagate
+        let commit = if String.IsNullOrEmpty prMetadata.MergeCommitSHA then prMetadata.Head?sha.AsString() else prMetadata.MergeCommitSHA
 
+        // Hotfix
+        (if DateTime.UtcNow > release then
+            let mergingMessage = String.Format("Auto-merging {0} to {1}", prMetadata.Head?label.AsString(), "master")
+            logger.Debug (repo + ": " + mergingMessage)
+            this.MergeBranch repo commit "master" mergingMessage |> ignore
+            branchesToPropagateTo |> Seq.append [| "master" |]
+        else
+            // Late check-in
+            branchesToPropagateTo |> Seq.append [| prMetadata.Base?ref.AsString() |])
+       |> Seq.pairwise
+       |> Seq.iter (fun (src, target) ->
+                        let mergingMessage = String.Format("Auto-merging {0} to {1}", src, target)
+                        logger.Debug (repo + ": " + mergingMessage)
+                        this.MergeBranch repo src target mergingMessage |> ignore)
