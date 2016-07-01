@@ -265,13 +265,13 @@ type t(owner, token) =
     member this.ProcessMergedPullRequest (prMetadata : MindTouch.Domain.MergedPullRequestMetadata) =
         let repo = prMetadata.Repo
         let branches = this.GetBranches repo
-        let release = prMetadata.Release.ToSafeUniversalTime()
+        let release = prMetadata.Release.Date
         let branchesToPropagateTo =
             branches
             |> Seq.choose (fun s ->
                                let branchname = s?name.AsString() in
                                let (valid, result) = DateTime.TryParseExact(branchname.Substring 8, MindTouch.DateUtils.DATE_PATTERN, null, DateTimeStyles.None) in
-                                   if valid && (result.ToSafeUniversalTime() > release) then Some(branchname, result) else None)
+                                   if valid && (result.Date > release) then Some(branchname, result) else None)
             |> Seq.sortBy (fun (_, date) -> date)
             |> Seq.map (fun (branchname, _) -> branchname)
             |> Seq.toArray
@@ -280,7 +280,7 @@ type t(owner, token) =
         let commit = if String.IsNullOrEmpty prMetadata.MergeCommitSHA then prMetadata.Head?sha.AsString() else prMetadata.MergeCommitSHA
 
         // Hotfix
-        (if DateTime.UtcNow > release then
+        (if DateTime.UtcNow.Subtract(new TimeSpan(7, 0, 0)) > release then
             let mergingMessage = String.Format("Auto-merging {0} to {1}", prMetadata.Head?label.AsString(), "master")
             logger.Debug (repo + ": " + mergingMessage)
             this.MergeBranch repo commit "master" mergingMessage |> ignore
