@@ -38,6 +38,7 @@ type MergedPullRequestMetadata = {
     Head: JsonValue;
     Base: JsonValue;
     MergeCommitSHA: String;
+    PrNumber: int;
 }
 
 type PullRequest =
