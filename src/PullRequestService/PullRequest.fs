@@ -133,7 +133,8 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
         Release = getTargetBranchDate pr;
         Head = pr?head;
         Base = pr?``base``;
-        MergeCommitSHA = pr?merge_commit_sha.AsString() }
+        MergeCommitSHA = pr?merge_commit_sha.AsString() 
+        PrNumber = pr?number.AsInteger()}
     else if IsUnknownMergeabilityPullRequest pr then
         PR.UnknownMergeability prUri
     else if (IsOpenPullRequest state || reopenedPullRequest pr) && IsAutoMergeablePullRequest pr then
