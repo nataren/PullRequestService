@@ -281,7 +281,7 @@ type t(owner, token) =
 
         // Hotfix
         (if DateTime.UtcNow.Subtract(new TimeSpan(7, 0, 0)) > release then
-            let mergingMessage = String.Format("Merge pull request #{0}: Auto-merging {1} to {2}, old", prMetadata.PrNumber, prMetadata.Head?label.AsString(), "master")
+            let mergingMessage = String.Format("Merge pull request #{0}: Auto-merging {1} to {2}", prMetadata.PrNumber, prMetadata.Head?label.AsString(), "master")
             logger.Debug (repo + ": " + mergingMessage)
             this.MergeBranch repo commit "master" mergingMessage |> ignore
             branchesToPropagateTo |> Seq.append [| "master" |]
@@ -290,6 +290,6 @@ type t(owner, token) =
             branchesToPropagateTo |> Seq.append [| prMetadata.Base?ref.AsString() |])
        |> Seq.pairwise
        |> Seq.iter (fun (src, target) ->
-                        let mergingMessage = String.Format("Merge pull request #{0}: Auto-merging {1} to {2}, old", prMetadata.PrNumber, src, target)
+                        let mergingMessage = String.Format("Merge pull request #{0}: Auto-merging {1} to {2}", prMetadata.PrNumber, src, target)
                         logger.Debug (repo + ": " + mergingMessage)
                         this.MergeBranch repo src target mergingMessage |> ignore)
