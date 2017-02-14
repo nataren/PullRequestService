@@ -64,9 +64,12 @@ type t(awsRegion : string) =
         body.Text <- text
         let message = new Message(new Content(subject), body)
         let destination = new Destination()
-        let toAddresses = new System.Collections.Generic.List<string>()
-        toAddresses.Add(to_)
-        destination.ToAddresses <- toAddresses
+
+        // Split comma separated values and remove any empty spaces
+        let toAddresses = to_.Split(',') |> Seq.map(fun x -> x.Trim())
+
+        // Add addresses to send email to
+        destination.ToAddresses <- new System.Collections.Generic.List<string>(toAddresses) 
         let l = Collections.Generic.List<string>()
         l.AddRange <| (if bccAddresses = null then Seq.empty<string> else bccAddresses)
         destination.BccAddresses <- l

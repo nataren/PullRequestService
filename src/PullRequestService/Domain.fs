@@ -32,6 +32,7 @@ type MergedPullRequestMetadata = {
     Repo : String;
     HtmlUri : XUri;
     LinkedYouTrackIssues : seq<string>;
+    RepoSshUrl: String;
     Author : String;
     Message : String;
     Release : DateTime;
