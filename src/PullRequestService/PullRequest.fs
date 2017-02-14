@@ -128,7 +128,7 @@ let DeterminePullRequestType reopenedPullRequest youtrackValidator youtrackIssue
         Repo = repoName
         HtmlUri = new XUri(pr?html_url.AsString())
         LinkedYouTrackIssues = branchName |> GetTicketNames |> youtrackIssuesFilter
-        RepoUrl = (pr?``base``?repo?ssh_url.AsString());
+        RepoSshUrl = (pr?``base``?repo?ssh_url.AsString());
         Author = (pr?user?login.AsString());
         Message = (pr?body.AsString());
         Release = getTargetBranchDate pr;
@@ -174,7 +174,7 @@ let ProcessMergedPullRequest (fromEmail : string) (toEmail : string) (email : Mi
         | :? MindTouch.Github.MergeException as ex ->
             logger.ErrorFormat("HTTP error during merge operation: {0}", ex.Message)
             let release = "release_" + prMetadata.Release.ToSafeUniversalTime().ToString(MindTouch.DateUtils.DATE_PATTERN)
-            let subject = prMetadata.Author + ", there was an error propagating your changes to repository " + ex.Repo + ", on " + GlobalClock.UtcNow.ToString("f") + " " + prMetadata.RepoUrl + " " + ex.Source_  + " " + ex.Target + " " +  prMetadata.MergeCommitSHA
+            let subject = prMetadata.Author + ", there was an error propagating your changes to repository " + ex.Repo + ", on " + GlobalClock.UtcNow.ToString("f") + " " + prMetadata.RepoSshUrl + " " + ex.Source_  + " " + ex.Target + " " +  prMetadata.MergeCommitSHA
             let sourceAndTargetPropagationMessage = String.Format("Could not propagate the changes made to '{0}' from '{1}' to '{2}'.", release, prMetadata.HtmlUri, ex.Target)
             let callToAction = "You must propagate your changes by  fixing the conflicts, and submitting a pull request to the conflicting branch."
             let message = String.Format("This service takes care of propagating changes across the different release branches.\n{8}\n{7}\n\nRepo='{0}'\nOriginal PR='{1}'\nAuthor='{2}'\nOriginal release branch='{3}'\nTarget branch='{4}'\nError='{5}'\nCommit='{6}'",
