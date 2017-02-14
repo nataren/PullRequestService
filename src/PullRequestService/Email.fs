@@ -66,7 +66,7 @@ type t(awsRegion : string) =
         let destination = new Destination()
 
         // Split comma separated values and remove any empty spaces
-        let toAddresses = to_.Split(',') |> Seq.map(fun x -> x.Replace(" ", ""))
+        let toAddresses = to_.Split(',') |> Seq.map(fun x -> x.Trim())
 
         // Add addresses to send email to
         destination.ToAddresses <- new System.Collections.Generic.List<string>(toAddresses) 
