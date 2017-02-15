@@ -65,13 +65,19 @@ Create a file `pr.config` with the following content, and change the values appr
                 <youtrack.password>{YOUTRACK_PASSWORD}</youtrack.password>
                 <archive.branches.ttl>{HOW_OFTEN_TO_ARCHIVE_BRANCHES_IN_MILLISECONDS}</archive.branches.ttl>
                 <archive.branches.keep>{HOW_MANY_RELEASE_BRANCHES_TO_KEEP_AROUND}</archive.branches.keep>
-				<to.email>{TARGET_EMAIL_ADDRESS}</to.email>
+				<to.email>{TARGET_EMAIL_ADDRESSES}</to.email>
 				<from.email>{SES_ENABLED_EMAIL_ADDRESS}</from.email>
 				<aws.region>{REGION}</aws.region>
 			</config>
 		</action>
 	</script>
 </config>
+```
+
+`TARGET_EMAIL_ADDRESSES` in the `to.email` support multiple comman separated values, for example
+
+```
+	<to.email>foo@bar.com, baz@bar.com</to.email>
 ```
 
 ## Run the service
