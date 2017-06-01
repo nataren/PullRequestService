@@ -73,7 +73,7 @@ let IsClosedPullRequest (state : JsonValue) =
     state <> JsonValue.Null && "closed".EqualsInvariantIgnoreCase(state.AsString())
 
 let IsTargettingSpecificPurposeBranch (branchName : string) =
-    branchName <> null && branchName.ContainsInvariantIgnoreCase("_master")
+    branchName <> null && (branchName.ContainsInvariantIgnoreCase("_master") || not <| branchName.StartsWithInvariantIgnoreCase("release_"))
 
 let IsTargettingExplicitlyFrozenBranch (repo : string) (pr : JsonValue) isTargetingRepoFrozenBranch =
     let targetBranch = pr?``base``?ref.AsString()

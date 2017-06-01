@@ -23,7 +23,6 @@
 [<RequireQualifiedAccess>]
 module MindTouch.Domain
 
-open log4net
 open MindTouch.Dream
 open System
 open FSharp.Data.Json
